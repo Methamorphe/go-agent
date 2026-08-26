@@ -20,7 +20,6 @@ func run() int {
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
-
 	defer stop()
 
 	logger := slog.New(
@@ -31,7 +30,7 @@ func run() int {
 
 	if err := application.Run(ctx); err != nil {
 		logger.Error(
-			"application stopper with an error",
+			"application stopped with an error",
 			"error", err,
 		)
 
