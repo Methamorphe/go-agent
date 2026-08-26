@@ -10,9 +10,14 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**The project is currently in A0.**
+**A0 is complete. G0 has not started.**
 
-No runtime implementation should begin until the high-coupling semantics required by G0/G1 are sufficiently specified. See `ARCHITECTURE_GATE.md`.
+See:
+
+- `A0_EXIT_REVIEW.md`;
+- `ARCHITECTURE_GATE.md`;
+- `ARCHITECTURE_DECISIONS.md`;
+- `FOUNDATION_TECHNICAL_DECISIONS.md`.
 
 A generation is complete only when its invariants, failure behavior and non-functional claims are tested and documented.
 
@@ -20,56 +25,53 @@ The working product name remains **TBD**.
 
 ---
 
-# A0 — Architecture & Semantics
+# A0 — Architecture & Semantics ✅ COMPLETE
 
 ## Goal
 
 Design the execution model deeply enough that implementation validates decisions instead of inventing fundamental semantics ad hoc.
 
-## Required architecture workstreams
+## Closed workstreams
+
+A0 now defines:
 
 - Agent Process state machine and Agent Syscalls;
 - Event Ledger ordering, reducers, snapshots and projections;
 - canonical vs ephemeral state;
-- SQLite/object-store persistence contracts;
+- SQLite/Object Store persistence contracts;
 - failure and recovery semantics;
 - concurrency ownership, bounded queues and backpressure;
 - runtime daemon ↔ TUI protocol and history virtualization;
 - World/action/effect contracts;
-- capability/intent policy model;
+- capability + Intent-Based Authority model;
 - Cognitive MMU pages/working-set/recall semantics;
-- recursive-agent budget and cancellation semantics;
-- transaction/fork state machines;
+- Context Fault semantics;
+- Epistemic Memory + Truth Maintenance;
+- recursive-agent budget/cancellation/messaging semantics;
+- transaction/fork/restore/merge safety;
+- Cognitive Scheduler + Agent Economy;
+- Verified Continual Improvement extension semantics;
 - testing, soak and benchmark gates.
 
-## A0 outputs already established
+## A0 result
 
-- `ARCHITECTURE_GATE.md`;
-- `CONCEPT_CONTRACTS.md` covering all current core concepts;
-- `RELIABILITY_AND_PERFORMANCE.md`;
-- `TUI_AND_STREAMING.md`;
-- `CONCURRENCY_AND_BACKPRESSURE.md`;
-- `STATE_PERSISTENCE_AND_STORAGE.md`;
-- `FAILURE_MODEL_AND_RECOVERY.md`;
-- `TESTING_BENCHMARKS_AND_QUALITY_GATES.md`;
-- `ARCHITECTURE_DECISIONS.md`.
+**PASS.**
 
-## A0 completion criteria
+Remaining unknowns are isolated as empirical adapter/tuning work rather than semantic gaps.
 
-Before G0:
+Examples:
 
-- every G0/G1 primitive has explicit canonical state;
-- Agent Process lifecycle/state transition table is frozen enough to implement;
-- event ordering/version semantics are decided;
-- snapshot/event compatibility strategy exists;
-- storage failure behavior is specified;
-- daemon/TUI ownership boundary is fixed;
-- no unbounded hot-path queues are allowed;
-- long-session performance tests are defined;
-- initial architecture decisions required by G0/G1 are accepted;
-- implementation tasks can be written without deciding core semantics in code review.
+```text
+SQLite driver soak/performance validation
+Git WorkspaceWorld implementation details
+Unix/Windows process-tree edge cases
+MMU ranking thresholds
+Memory consolidation heuristics
+Scheduler utility weights
+TUI library selection
+```
 
-The architecture gate does **not** require late-stage algorithms such as learned scheduling or full Truth Maintenance to be solved before G0. Their extension boundaries and invariants must simply be protected.
+These do not block G0 because their interfaces/guarantees are already defined.
 
 ---
 
@@ -82,17 +84,32 @@ Create a tiny Go codebase implementing the architecture's foundational boundarie
 ## Deliverables
 
 - Go module and repository layout;
-- CLI/runtime entry points;
+- CLI/runtime daemon entry points;
 - structured logging;
 - typed IDs/errors;
 - configuration loading;
 - SQLite storage implementation;
-- object-store implementation;
+- content-addressed streaming Object Store;
 - migration mechanism;
-- deterministic clock/ID test abstractions where useful;
+- clock/ID test abstractions where useful;
+- local IPC skeleton;
 - basic unit/integration/fault test setup;
 - profiler/runtime metrics hooks;
 - architecture package boundaries.
+
+## Accepted implementation baseline
+
+```text
+Go
+modernc.org/sqlite behind internal adapter (provisional/benchmarked)
+database/sql + explicit SQL
+SQLite WAL + foreign_keys + reliability-first synchronous mode
+versioned JSON event payloads
+versioned rebuildable JSON snapshots
+SHA-256 content-addressed Object Store
+Unix domain socket / Windows named pipe IPC
+length-framed versioned JSON control protocol
+```
 
 ## Key constraints
 
@@ -100,15 +117,21 @@ Create a tiny Go codebase implementing the architecture's foundational boundarie
 - no unbounded queues;
 - large object APIs stream via `io.Reader`/`io.Writer`;
 - storage health failures have explicit behavior;
-- standard library preferred where adequate.
+- standard library preferred where adequate;
+- no ORM in kernel storage;
+- no new architecture semantics invented in code.
 
 ## Completion criteria
 
-- `go test ./...` and race suite baseline pass;
-- executable/runtime can initialize/reopen DB safely;
-- object store can stream large objects with bounded memory;
-- database crash/reopen tests pass;
-- no agent-specific product behavior leaked into storage/CLI foundations.
+- `go test ./...` passes;
+- race-suite baseline passes on supported platform set;
+- runtime initializes/reopens DB safely;
+- Object Store streams large objects with bounded memory;
+- DB kill/reopen tests pass;
+- snapshots are rebuildable from ledger;
+- malformed IPC cannot crash daemon;
+- storage adapter isolates SQLite driver-specific code;
+- no agent-specific behavior leaked into foundation layers.
 
 ---
 
@@ -124,7 +147,7 @@ Prove the central process model before calling any LLM.
 
 - stable `AgentID`;
 - parent/child relationship metadata;
-- lifecycle states;
+- lifecycle states from accepted state machine;
 - root Intent object;
 - versioned status transitions;
 - durable sleep/wait representation foundations.
@@ -133,10 +156,9 @@ Prove the central process model before calling any LLM.
 
 - append-only meaningful events;
 - causation/correlation IDs;
-- explicit sequence/version model;
-- process event stream;
+- accepted global sequence + process-version model;
 - pure deterministic reducer;
-- periodic/versioned snapshot format;
+- versioned snapshot format;
 - reconstruct process from snapshot + tail events;
 - current process projection.
 
@@ -188,8 +210,6 @@ Run the smallest useful intelligent process through kernel boundaries.
 
 ### Initial syscalls
 
-Start tiny:
-
 ```text
 observe
 execute
@@ -207,15 +227,15 @@ checkpoint
 - model tokens use bounded/coalesced live stream;
 - final response persisted as object/artifact;
 - canonical events record invocation lifecycle, not one event per token;
-- command output streams to object store with bounded preview tail.
+- command output streams to Object Store with bounded preview/tail.
 
 ### UI
 
-A basic attachable client/CLI is enough. Do not build the final TUI yet.
+A basic attachable client/CLI is enough. Do not build final TUI yet.
 
 ## Completion criteria
 
-The agent can inspect a small repository, run a command and answer while every meaningful action is attributable in the ledger and large output cannot grow hot memory without bound.
+Agent can inspect a small repository, run a command and answer while every meaningful action is attributable in Ledger and large output cannot grow hot memory without bound.
 
 ---
 
@@ -233,8 +253,9 @@ Make execution structurally controlled.
 - action/result protocol;
 - process execution abstraction;
 - filesystem abstraction;
-- World lifecycle/capability descriptor;
-- streamed output/cancellation contract.
+- World lifecycle/Profile;
+- streamed output/cancellation contract;
+- platform process-tree adapter.
 
 ### Capability system
 
@@ -254,22 +275,25 @@ Compensatable
 Irreversible
 ```
 
-plus traits such as idempotency/retryability where required.
+plus traits such as idempotency/retryability.
 
-### Intent Lock
+### Intent-Based Authority foundation
 
-- immutable root intent;
+- immutable/versioned root Intent;
 - acceptance criteria;
 - allowed/forbidden effect domains;
-- action-intent policy hook.
+- Purpose-Carrying Actions;
+- Action Proof;
+- typed authorization outcomes.
 
 ## Killer tests
 
 - child cannot acquire missing parent capability;
-- read-only agent cannot write even if LLM requests it;
+- read-only agent cannot write even if model requests it;
 - expired lease fails deterministically;
 - denied action never reaches World;
 - prompt/tool content cannot mint authority;
+- model cannot downgrade Effect classification;
 - every security decision is causally visible.
 
 ---
@@ -282,44 +306,22 @@ Stop treating conversation history as canonical memory.
 
 ## Deliverables
 
-### Context Page
-
-- page identity/type/source/scope;
-- token estimate;
-- importance/relevance metadata;
-- persistence;
-- object-backed large content.
-
-### Working-set builder
-
-Pack bounded context from:
-
-- intent;
-- current task state;
-- pinned pages;
-- recent causal events;
-- explicitly retrieved pages;
-- tool/syscall schemas;
-- reserved output budget.
-
-### `recall()` syscall
-
-Explicit retrieval before automatic Context Faults.
-
-### Context trace
-
-Every model call records page selection/reason/budget.
-
-### Basic eviction
-
-Remove low-value pages from active context without deleting durable state.
+- semantic Context Pages;
+- token estimates;
+- persisted metadata/object content;
+- deterministic tiered working-set builder;
+- explicit `recall()`;
+- Context Manifest;
+- basic structured compaction;
+- bounded eviction/cache behavior.
 
 ## Killer tests
 
 - accumulated history larger than model context still allows useful work;
-- hard token budget is never exceeded;
-- old relevant fact can be explicitly recalled;
-- hot memory/context remains bounded as synthetic history grows.
+- hard token budget never exceeded;
+- old relevant fact explicitly recalled;
+- 100k-page corpus does not materialize all bodies;
+- hot memory/context remains bounded as history grows.
 
 ---
 
@@ -331,44 +333,19 @@ Bring recursive-agent benefits into the durable process/security/economy model.
 
 ## Deliverables
 
-### `spawn()`
-
-Child contract includes:
-
-- task/child intent;
-- authority subset;
-- budget reservation;
-- deadline;
-- model policy;
-- World policy;
-- result/evidence contract.
-
-### Messaging
-
-- request/response;
-- status;
-- result;
-- evidence reference;
-- cancellation.
-
-### Supervisor
-
-- bounded concurrent children;
-- durable child states;
-- restart-safe waiting;
+- durable `spawn()` validate/reserve/create protocol;
+- child Task Intent and authority subset;
+- result/evidence contract;
+- bounded messaging/mailboxes;
+- durable parent waits;
 - cancellation tree;
-- fairness across roots.
-
-### Budget hierarchy
-
-- token/cost reservation;
-- max children;
-- max parallelism;
-- release unused reservation exactly once.
+- wait-for cycle detection;
+- fan-out/depth/fairness controls;
+- budget reservations/settlement.
 
 ## Killer test
 
-Root delegates three repository investigations in parallel, survives daemon restart with a child pending, and receives structured evidence without importing whole child transcripts.
+Root delegates three repository investigations in parallel, survives daemon restart with child pending, and receives structured evidence without importing whole child transcripts.
 
 ---
 
@@ -380,49 +357,51 @@ Stop binding an Agent Process to one model.
 
 ## Deliverables
 
-- model registry/capabilities;
-- cost/latency estimates;
-- rule-based task routing;
-- provider health/circuit behavior;
-- fallback policy;
+- model registry/Profile;
+- Cognitive Task descriptor;
+- hard eligibility filtering;
+- cost/latency/quality score policy;
+- runtime provider health/circuit breaker;
+- budget reservation/settlement;
+- fallback;
 - privacy/locality constraints;
-- per-task override;
-- routing events/metrics.
+- fairness/global/per-root slots;
+- routing decision events/metrics.
 
 ## Initial policy
 
-Deterministic rules first:
+Deterministic rules first.
 
-```text
-cheap extraction → small/cheap model
-large-context synthesis → context-capable model
-high-risk architecture → strong reasoning model
-provider unhealthy → eligible fallback
-private/local-only → local compatible model
-```
+No learned router in v0.
 
 ## Evaluation
 
-Compare against always-default/always-strongest/always-cheapest baselines on cost-quality-latency.
+Compare against always-default/always-strongest/always-cheapest baselines on verified quality, cost and latency.
 
 ---
 
-# G7 — OCI World + Agent Transactions
+# G7 — Workspace/OCI World + Agent Transactions
 
 ## Goal
 
-Make speculative work isolated and reversible where semantics allow.
+Make speculative work isolated and reversible where guarantees permit.
 
 ## Deliverables
 
+### WorkspaceWorld
+
+- Git-aware isolated workspace;
+- captured dirty/untracked base policy;
+- target divergence detection;
+- three-way promotion.
+
 ### OCI World
 
-- isolated workspace mount;
-- restricted network mode;
+- controlled mounts;
+- restricted network default;
 - CPU/memory/time limits;
-- controlled environment;
-- secret binding without prompt exposure;
-- snapshot/fork capability description.
+- secret binding;
+- snapshot/fork Profile.
 
 ### Transaction API
 
@@ -430,72 +409,62 @@ Make speculative work isolated and reversible where semantics allow.
 begin
 execute
 verify
+prepare
 commit / rollback / reconcile
 ```
 
-### Verification contract
-
-- commands/tests;
-- policies;
-- acceptance criteria mapping;
-- optional model evaluator only when objective checks are insufficient.
-
 ## Killer tests
 
-- multi-file breaking change fails verification and rollback restores defined observable state;
-- runtime killed at multiple transaction boundaries recovers correct explicit state;
+- breaking multi-file change fails verification and rolls back exact defined state;
+- kill runtime at each transaction boundary;
+- crash during APPLY enters reconciliation, never false commit;
 - irreversible effect cannot be falsely rolled back.
 
 ---
 
-# G8 — Cognitive Fork / Speculative Execution
+# G8 — Cognitive Fork / Safe Execution Editing
 
 ## Goal
 
-Explore alternative futures in parallel.
+Explore alternative futures in parallel without rewriting history.
 
 ## Deliverables
 
-- named checkpoint;
-- fork Agent Process state;
-- fork World state;
+- Forkable quiescent checkpoint;
+- Execution Frontier;
+- isolated branch Agent/World state;
 - branch-local memory/context overlay;
 - independent budget reservations;
-- concurrent branches;
-- evaluator compares objective results/artifacts;
-- promote winner;
-- clean/discard/retain loser according to policy.
+- objective evaluator;
+- three-way World merge;
+- selective cognitive promotion;
+- promotion lease;
+- restore-as-new-timeline;
+- cleanup/retention.
 
 ## Killer demonstration
 
-Implement two solutions to a performance problem, benchmark both in isolated forks, explain comparison and promote only winner with no mutation leakage.
+Implement two solutions to a performance problem, benchmark both in isolated forks, explain comparison and promote only winner with no mutation leakage or history truncation.
 
 ---
 
-# G9 — Epistemic Memory
+# G9 — Epistemic Memory + Truth Maintenance
 
 ## Goal
 
-Replace flat snippets with evidence-aware beliefs.
+Replace flat snippets with evidence-aware knowledge.
 
 ## Deliverables
 
-- belief store;
-- scope;
-- provenance;
-- confidence metadata;
-- freshness/status lifecycle;
-- contradiction edges;
-- dependency graph;
-- retrieval integrated with Cognitive MMU.
-
-## Causal invalidation v1
-
-When source evidence changes:
-
-- mark directly derived beliefs stale;
-- propagate `needs_review` through dependency graph;
-- schedule/recommend verification according to policy.
+- immutable/versioned Evidence store;
+- platform provenance;
+- Belief lifecycle;
+- scope/temporal validity;
+- structured confidence metadata;
+- contradiction/dependency edges;
+- localized causal invalidation;
+- Cognitive MMU integration;
+- branch-local memory overlays.
 
 ## Killer test
 
@@ -507,21 +476,21 @@ Agent learns repository architecture fact; source changes; old belief is downgra
 
 ## Goal
 
-Make retrieval a runtime primitive rather than only a manual search command.
+Make missing knowledge a typed runtime paging event.
 
 ## Deliverables
 
-- symbolic context references;
+- stable semantic cognitive references;
+- Reference/Recall/Evidence/Freshness/Dependency/Representation faults;
+- context leases;
 - dependency-driven page loading;
-- Context Fault events;
-- fault-loop/thrashing protection;
-- smarter working-set planning;
-- structured compaction;
-- summary ↔ raw evidence links.
+- fault budgets/storm protection;
+- structured compaction ↔ evidence paging;
+- improved working-set planning.
 
-## Research requirement
+## Requirement
 
-Automatic faults remain observable/reproducible and cannot trigger hidden unbounded loops.
+Faults remain provider-independent at invocation/tool boundaries and observable/replayable.
 
 ---
 
@@ -533,12 +502,12 @@ Move beyond static multi-agent graphs.
 
 ## Deliverables
 
-- team proposal/decomposition format;
-- scheduler approval against budgets;
+- team proposal/decomposition;
+- scheduler admission;
 - temporary specialist profiles;
-- structured claim/challenge/evidence/revision protocol;
-- disagreement round/deadline limits;
-- escalation to parent/evaluator/user.
+- bounded claim/challenge/evidence/counterexample/revision protocol;
+- disagreement deadlines/round limits;
+- escalation.
 
 ## Killer demonstration
 
@@ -562,20 +531,27 @@ prompts
 agent profiles
 routing policies
 context policies
+memory policies
 ```
 
 Lifecycle:
 
 ```text
-hypothesis → candidate → evaluate → compare baseline → promote/reject → rollback
+hypothesis
+→ candidate
+→ evaluate
+→ shadow
+→ canary
+→ promote/reject
+→ rollback
 ```
 
 ## Hard invariants
 
-- self-improvement cannot expand capabilities;
-- cannot rewrite immutable root security/user policy;
-- historical invocations remain attributable to exact artifact versions;
-- security regression rejects candidate even if task score improves.
+- cannot expand capabilities;
+- cannot rewrite root Intent/effect floor;
+- historical invocations retain exact artifact versions;
+- security regression rejects candidate even if quality improves.
 
 ---
 
@@ -585,7 +561,7 @@ hypothesis → candidate → evaluate → compare baseline → promote/reject �
 
 Run same durable Agent Process abstraction across local and remote compute.
 
-## Candidates
+Candidates:
 
 - SSH worker;
 - remote Go worker protocol;
@@ -606,25 +582,22 @@ Make complex agent behavior understandable and replayable.
 
 ## Deliverables
 
-- process tree UI;
+- process/team tree UI;
 - causal graph;
-- context inspector;
-- authority/effect inspector;
+- context/fault inspector;
+- belief/provenance graph;
+- authority/Action Proof inspector;
 - resource/cost timeline;
 - World diff viewer;
-- historical checkpoint replay;
-- fork from past event;
+- checkpoint/fork/restore/merge timeline;
+- historical replay/fork;
 - OpenTelemetry export.
-
-The user should be able to answer:
-
-> “Why did agent A make change X, based on what evidence, under which authority, and what happens if I fork from before that choice?”
 
 ---
 
 # Cross-generation reliability requirements
 
-Every generation inherits these requirements:
+Every generation inherits:
 
 ```text
 bounded hot memory
@@ -638,7 +611,7 @@ inspectable causality
 no prompt-only security
 ```
 
-A feature is not “done” if its happy path works but it leaks memory/goroutines or has undefined crash behavior.
+A feature is not done if happy path works but it leaks memory/goroutines, blocks on slow clients or has undefined crash behavior.
 
 ---
 
@@ -654,12 +627,12 @@ persistent Agent Processes
 model streaming
 filesystem/shell/git actions
 Event Ledger
-capabilities/effects
+capabilities/effects/Intent
 bounded context
 recursive subagents
 ```
 
-But visual polish must not compromise progression toward G7–G10, where the strongest differentiation begins.
+But polish must not prevent progression toward G7–G10, where the strongest differentiation begins.
 
 ---
 
@@ -667,7 +640,7 @@ But visual polish must not compromise progression toward G7–G10, where the str
 
 Most kernel semantics must be testable without an LLM.
 
-Use deterministic fake providers and fake Worlds to test:
+Use deterministic fake providers and fake Worlds for:
 
 - process recovery;
 - authority subset;
@@ -675,10 +648,12 @@ Use deterministic fake providers and fake Worlds to test:
 - transaction rollback;
 - fork isolation;
 - budget accounting;
-- context budget;
+- context budgets/faults;
 - unknown outcomes;
 - slow consumers;
-- crash recovery.
+- crash recovery;
+- Truth Maintenance propagation;
+- scheduler fairness.
 
 Real-model tests evaluate harness/model quality separately.
 
@@ -686,19 +661,13 @@ Real-model tests evaluate harness/model quality separately.
 
 # Immediate next step
 
-**Do not implement G0 yet. Continue A0.**
+**G0 is ready to start, but has not started.**
 
-The next concrete architecture tasks are:
+When explicitly requested, implement **G0 only** according to:
 
-1. exact Agent Process state-transition table;
-2. event catalog + ordering/version semantics;
-3. syscall request/outcome protocol;
-4. storage schema/projection boundaries for G1;
-5. daemon ↔ TUI IPC/projection contract;
-6. World action + Effect descriptor contract;
-7. capability grammar/subset semantics;
-8. Cognitive MMU v0 packing/recall algorithm;
-9. transaction/fork state machines;
-10. benchmark acceptance rules and initial ADR closure.
+- `FOUNDATION_TECHNICAL_DECISIONS.md`;
+- `A0_EXIT_REVIEW.md`;
+- `ARCHITECTURE_DECISIONS.md`;
+- reliability/failure/storage/control-protocol contracts.
 
-When these high-coupling contracts are stable, G0/G1 can begin without architectural guesswork.
+If G0 implementation reveals a need to change a high-coupling semantic invariant, stop and amend the architecture first rather than embedding the change silently in code.
