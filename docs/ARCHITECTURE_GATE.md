@@ -1,577 +1,431 @@
-# Architecture Gate — Pre-Development Design Phase
+# Architecture Gate — A0 Architecture & Semantics
 
 ## Status
 
-**Mandatory before implementation.**
+**PASS — A0 semantic architecture is complete.**
 
-The project deliberately inserts an architecture phase before `G0`.
+See [`A0_EXIT_REVIEW.md`](A0_EXIT_REVIEW.md) for the final exit review, remaining empirical validation items and explicit deferred research.
 
-Working name for this phase:
-
-```text
-A0 — Architecture & Semantics
-```
-
-No production runtime code should be started merely because a concept sounds good.
+No runtime code was required to complete A0.
 
 ---
 
-# 1. Why an architecture gate?
+# 1. Purpose of A0
 
-This project combines several difficult systems problems:
+The project deliberately inserted an architecture phase before G0 because it combines difficult systems concerns:
 
 - durable state machines;
 - long-running concurrency;
-- untrusted probabilistic model output;
-- side effects and external systems;
-- context/memory management;
-- recursive work graphs;
+- probabilistic/untrusted model output;
+- external side effects;
+- context/memory virtualization;
+- recursive process graphs;
 - local persistence;
 - interactive streaming UI;
-- sandboxing/security;
+- sandbox/security boundaries;
 - speculative execution;
-- self-modification.
+- self-improvement.
 
-Implementing these directly from a high-level roadmap would lock accidental semantics into code.
-
-A0 exists to decide **what each primitive means** before choosing how to implement it.
+The goal was to decide **what each primitive means** before implementation accidentally froze semantics.
 
 ---
 
-# 2. Definition of “architected”
+# 2. Definition of architected
 
-A concept is ready for implementation only when its specification answers all of the following.
+A concept is considered architected when its contract specifies:
 
-## Problem
+```text
+problem / why
+semantic primitive
+canonical vs ephemeral state
+state machine / lifecycle
+invariants
+concurrency ownership
+backpressure
+failure / recovery
+security / authority / effects
+performance/resource bounds
+observability
+validation tests/benchmarks
+evolution/deferred research
+```
 
-- What concrete failure/limitation of current agents does it solve?
-- Is it kernel-level or harness/product-level?
-- What happens if we do not build it?
+A0 does not require every tuning constant to be known before measurement.
 
-## Semantics
-
-- What is the primitive?
-- What is it explicitly not?
-- What lifecycle/state machine does it have?
-- What operations exist?
-
-## Canonical state
-
-- What data must survive crash/restart?
-- What is ephemeral?
-- What belongs in SQLite?
-- What belongs in object/blob storage?
-
-## Invariants
-
-- Which properties must never be violated?
-- Which can be checked synchronously by the kernel?
-- Which are eventual/best effort?
-
-## Concurrency
-
-- Who owns execution?
-- Can operations overlap?
-- What locks/version checks are required?
-- What queue/buffer is used and how is it bounded?
-
-## Failure model
-
-- What can fail before/during/after an effect?
-- Can outcome become unknown?
-- Is retry safe?
-- What happens after daemon crash?
-
-## Security
-
-- What capabilities are required?
-- What effect class applies?
-- What intent constraints apply?
-- Can a child delegate the operation?
-
-## Performance
-
-- What grows with agent lifetime?
-- What must remain bounded?
-- What is the hot path?
-- What data must stream instead of buffering?
-
-## Observability
-
-- Which canonical events are emitted?
-- Which metrics matter?
-- How does a user answer “why did this happen?”
-
-## Validation
-
-- Which unit/invariant tests prove semantics?
-- Which integration/fault tests prove recovery?
-- Which benchmark/soak test proves performance claims?
-
-## Evolution
-
-- What is deliberately deferred?
-- Which interfaces are private/unstable?
-- How can semantics evolve without breaking persisted state?
+It requires empirical choices to be isolated behind already-defined semantics.
 
 ---
 
-# 3. A0 workstreams
+# 3. A0 workstream results
 
-## A0.1 — Runtime/process semantics
+## A0.1 Runtime/process semantics — CLOSED
 
-Concepts:
+Defined:
 
-- Agent Process;
-- process lifecycle;
+- durable Agent Process identity;
+- lifecycle/state machine;
 - parent/child lineage;
-- Agent Syscalls;
-- durable sleep/wake;
-- model-independent identity.
-
-Required outputs:
-
-- complete process state machine;
-- syscall request/response contracts;
-- state/version concurrency model;
-- cancellation semantics;
-- event mapping;
-- recovery table.
-
-Status: **partially designed**.
+- cancellation;
+- waiting/sleeping;
+- model-independent identity;
+- activation vs durable state distinction.
 
 Primary docs:
 
+- `AGENT_PROCESS_STATE_MACHINE.md`
 - `ARCHITECTURE.md`
-- `STATE_PERSISTENCE_AND_STORAGE.md`
 - `CONCURRENCY_AND_BACKPRESSURE.md`
-- `FAILURE_MODEL_AND_RECOVERY.md`
 
 ---
 
-## A0.2 — Persistence and event semantics
+## A0.2 Persistence/event semantics — CLOSED
 
-Concepts:
+Defined:
 
-- Event Ledger;
-- snapshots;
+- append-only meaningful Event Ledger;
+- global/local sequence/version semantics;
+- optimistic process versions;
+- deterministic reducers;
+- snapshots + tail replay;
 - projections;
-- object store;
-- replayable cognition;
-- causal trace.
+- object finalization/GC;
+- versioned payloads.
 
-Required outputs:
+Primary docs:
 
-- event ordering model;
-- append transaction semantics;
-- reducer contract;
-- snapshot compatibility/versioning;
-- object finalization and GC;
-- replay modes;
-- corruption behavior.
-
-Status: **partially designed; schema/event catalog still required**.
+- `EVENT_MODEL_AND_CATALOG.md`
+- `STATE_PERSISTENCE_AND_STORAGE.md`
+- `FOUNDATION_TECHNICAL_DECISIONS.md`
 
 ---
 
-## A0.3 — Context virtualization
+## A0.3 Context virtualization — CLOSED
 
-Concepts:
+Defined:
 
-- Cognitive MMU;
-- Context Page;
-- working set;
-- Context Fault;
-- compaction;
-- context observability.
+- Context Pages;
+- bounded working-set algorithm;
+- tiered packing;
+- explicit recall;
+- Context Fault classes;
+- semantic references;
+- context leases;
+- structured compaction;
+- fault-storm prevention;
+- observable Context Manifests.
 
-Required outputs:
+Primary docs:
 
-- page schema;
-- page identity/reference semantics;
-- token-budget algorithm;
-- pin/eviction rules;
-- recall API;
-- fault-loop prevention;
-- ranking baseline;
-- long-session benchmark.
+- `COGNITIVE_MMU_V0_ALGORITHM.md`
+- `CONTEXT_FAULTS_AND_COGNITIVE_PAGING.md`
 
-Status: **conceptually strong; algorithms/contracts not frozen**.
+Empirical tuning remains for ranking/page-size thresholds only.
 
 ---
 
-## A0.4 — Epistemic memory
+## A0.4 Epistemic Memory — CLOSED semantics
 
-Concepts:
+Defined:
 
-- working/episodic/semantic/procedural memory;
-- belief model;
-- provenance;
-- confidence;
-- contradiction;
-- causal invalidation / truth maintenance.
-
-Required outputs:
-
+- immutable/versioned evidence;
+- platform-maintained provenance;
+- provenance non-amplification;
 - belief lifecycle;
-- evidence graph schema;
-- invalidation algorithm;
-- conflict-resolution policy;
-- retrieval integration;
-- scope/security rules;
-- stale-memory eval corpus.
+- typed evidence/dependency edges;
+- contradiction preservation;
+- temporal/scope validity;
+- localized Truth Maintenance propagation;
+- episodic-first consolidation;
+- branch-local memory overlays.
 
-Status: **research/design required**.
+Primary doc:
+
+- `EPISTEMIC_MEMORY_AND_TRUTH_MAINTENANCE.md`
+
+Confidence/consolidation heuristics remain empirical.
 
 ---
 
-## A0.5 — Authority, intent and effect model
+## A0.5 Authority, Intent and Effects — CLOSED
 
-Concepts:
+Defined:
 
-- capabilities;
-- Authority Tree;
-- capability leases;
-- Intent Lock;
-- Intent-Based Authority;
+- typed capabilities;
+- subset/delegation;
+- leases/revocation;
 - Effect System;
-- risk/approval barriers;
-- secret isolation.
+- immutable/versioned Intent Envelope;
+- delegated Task Intent;
+- Purpose-Carrying Actions;
+- Action Proof;
+- deterministic + risk-sensitive semantic gates;
+- scoped approvals;
+- safe-World redirection;
+- prompt-injection boundary.
 
-Required outputs:
+Primary docs:
 
-- capability grammar;
-- delegation/subset algorithm;
-- effect descriptor schema;
-- policy evaluation order;
-- intent representation;
-- approval token semantics;
-- secret-provider contract;
-- adversarial test matrix.
-
-Status: **conceptually strong; formal schemas and policy order required**.
-
----
-
-## A0.6 — Execution Worlds
-
-Concepts:
-
-- World interface;
-- Local World;
-- OCI World;
-- Python World;
-- SSH/Kubernetes/browser later;
-- World capability levels;
-- world recovery.
-
-Required outputs:
-
-- minimal non-overabstract World contract;
-- action/result protocol;
-- resource limits;
-- process-tree cancellation;
-- filesystem/network semantics;
-- snapshot/fork capability discovery;
-- host-platform differences.
-
-Status: **requires detailed design before G3/G7**.
+- `CAPABILITY_AND_INTENT_MODEL.md`
+- `INTENT_BASED_AUTHORITY_ENGINE.md`
+- `SECURITY_AND_EFFECTS.md`
+- `WORLD_ACTION_AND_EFFECT_PROTOCOL.md`
 
 ---
 
-## A0.7 — Transactions and Cognitive Forks
+## A0.6 Execution Worlds — CLOSED semantics
 
-Concepts:
+Defined:
 
-- Agent Transaction;
-- checkpoint;
-- World snapshot;
-- Cognitive Fork;
-- branch evaluation;
-- promotion/rollback;
-- irreversible barriers.
+- World Profile/guarantees;
+- Local vs Workspace vs OCI vs Python semantics;
+- optional snapshot/fork/promotion capabilities;
+- streaming I/O;
+- process-tree ownership;
+- filesystem/symlink policy;
+- network enforcement compatibility;
+- secret binding;
+- World loss/reconciliation.
 
-Required outputs:
+Primary doc:
+
+- `EXECUTION_WORLDS_PLATFORM_CONTRACT.md`
+
+Exact Git/OCI/platform adapter mechanics are empirical prototypes, not semantic blockers.
+
+---
+
+## A0.7 Transactions / Cognitive Forks — CLOSED conservative v0
+
+Defined:
 
 - transaction state machine;
-- effect staging model;
-- commit protocol;
-- unknown-outcome recovery;
-- branch memory/context isolation;
-- evaluator contract;
-- cleanup/retention policy;
-- rollback oracle tests.
+- reversible/irreversible barriers;
+- verification;
+- checkpoint classes;
+- Execution Frontier;
+- quiescent mutation-capable fork baseline;
+- restore-as-new-timeline;
+- three-way World merge;
+- selective cognitive merge;
+- promotion lease;
+- reconciliation after uncertain commit.
 
-Status: **research/design required; one of the main differentiators**.
+Primary docs:
+
+- `TRANSACTIONS_AND_COGNITIVE_FORKS.md`
+- `EXECUTION_EDIT_SAFETY.md`
+
+Advanced non-quiescent execution editing is explicitly deferred.
 
 ---
 
-## A0.8 — Recursive orchestration
+## A0.8 Recursive orchestration — CLOSED
 
-Concepts:
+Defined:
 
-- spawn;
-- messaging;
+- durable spawn protocol;
+- resource reservation;
+- result contracts;
+- durable parent waits;
+- cancellation tree;
+- bounded mailboxes;
 - adaptive teams;
-- agent negotiation;
-- parent/child waiting;
-- result/evidence contracts.
+- finite negotiation;
+- wait-for cycle detection;
+- fan-out/fairness limits.
 
-Required outputs:
+Primary doc:
 
-- child creation protocol;
-- structured result contract;
-- messaging semantics;
-- cancellation propagation;
-- peer-communication authority;
-- deadlock/loop prevention;
-- fan-out limits.
-
-Status: **partially designed**.
+- `RECURSIVE_ORCHESTRATION_PROTOCOL.md`
 
 ---
 
-## A0.9 — Cognitive Scheduler and Agent Economy
+## A0.9 Cognitive Scheduler / Economy — CLOSED semantics
 
-Concepts:
+Defined:
 
-- model registry;
-- routing policy;
-- provider health;
-- cost/latency/quality tradeoffs;
-- hierarchical budgets;
-- resource reservations;
-- fairness.
+- per-Cognitive-Task routing;
+- model profiles;
+- hard eligibility filtering;
+- cost/latency/quality objective;
+- runtime load/health telemetry;
+- budget reservation/settlement;
+- fallback/circuit breaking;
+- hedging/speculation admission;
+- local inference as bounded resource;
+- fairness;
+- learned-routing lifecycle.
 
-Required outputs:
+Primary doc:
 
-- model capability schema;
-- task classification format;
-- deterministic v0 routing algorithm;
-- fallback rules;
-- accounting units;
-- reservation/settlement semantics;
-- fairness scheduler;
-- evaluation baseline.
+- `COGNITIVE_SCHEDULER_ARCHITECTURE.md`
 
-Status: **partially designed**.
+Weights/quality priors remain empirical.
 
 ---
 
-## A0.10 — TUI and local control protocol
+## A0.10 TUI/local control — CLOSED semantics
 
-Concepts:
+Defined:
 
-- daemon/runtime separation;
+- durable runtime separated from TUI;
+- local IPC envelope;
 - attach/detach;
-- presentation projections;
-- viewport virtualization;
+- cursor-based pagination;
+- bounded live subscriptions;
 - stream coalescing;
-- approval UX;
-- multi-client future.
+- slow-client disconnect/recovery;
+- large artifact streaming;
+- approval/control semantics.
 
-Required outputs:
+Primary docs:
 
-- IPC envelope;
-- subscription/cursor semantics;
-- conversation block schema;
-- viewport query API;
-- slow-client overflow policy;
-- reconnect protocol;
-- performance benchmark fixtures.
+- `LOCAL_CONTROL_PROTOCOL.md`
+- `TUI_AND_STREAMING.md`
 
-Status: **architectural direction defined; protocol contract still required**.
+TUI framework choice remains benchmark-selected.
 
 ---
 
-## A0.11 — Reliability/performance
+## A0.11 Reliability/performance — CLOSED architecture
 
-Concepts:
+Defined:
 
+- bounded hot memory;
 - bounded queues;
+- streaming outputs;
 - backpressure;
-- streaming object storage;
-- snapshot/replay bounds;
-- goroutine discipline;
+- supervised goroutine ownership;
 - resource budgets;
-- profiling;
-- soak tests.
+- crash/fault matrix;
+- 1h/8h/24h soak tests;
+- 100k-history fixture;
+- multi-GB output tests.
 
-Required outputs:
+Primary docs:
 
-- hard/soft budgets;
-- stream capacities/overflow policies;
-- initial performance baselines;
-- memory growth acceptance rules;
-- profiling endpoints/build options;
-- CI benchmark strategy.
+- `RELIABILITY_AND_PERFORMANCE.md`
+- `CONCURRENCY_AND_BACKPRESSURE.md`
+- `FAILURE_MODEL_AND_RECOVERY.md`
+- `TESTING_BENCHMARKS_AND_QUALITY_GATES.md`
 
-Status: **principles and target tests defined; numbers to calibrate with prototypes**.
+Numeric thresholds are calibrated during implementation but cannot change the bounded-resource invariants.
 
 ---
 
-## A0.12 — Verified continual improvement
+## A0.12 Verified Continual Improvement — CLOSED extension semantics / implementation deferred
 
-Concepts:
+Defined:
 
-- versioned cognitive artifacts;
-- hypothesis/candidate evaluation;
-- promotion;
+- immutable artifact versions;
+- hypothesis/baseline;
+- evaluation;
+- shadow/canary;
+- hard security non-regression;
+- scoped promotion;
 - rollback;
-- no authority expansion.
+- exact artifact manifests for reproducibility.
 
-Required outputs:
+Primary doc:
 
-- artifact version model;
-- eval result schema;
-- promotion policy;
-- reproducibility requirements;
-- security non-regression gate;
-- rollback semantics.
+- `VERIFIED_CONTINUAL_IMPROVEMENT.md`
 
-Status: **late-stage design; architecture must reserve clean extension points**.
+Implementation remains intentionally late-stage.
 
 ---
 
-# 4. Architecture decision records (ADRs)
+# 4. Architecture review laws
 
-Important irreversible/expensive decisions should have an ADR before implementation.
-
-Likely initial ADRs:
-
-```text
-ADR-001 Go as kernel/runtime language
-ADR-002 runtime daemon separated from TUI
-ADR-003 SQLite + content-addressed object store for local persistence
-ADR-004 event-sourced process transitions + projections
-ADR-005 canonical event granularity excludes token/byte streams
-ADR-006 context window treated as bounded cache
-ADR-007 capability/effect enforcement outside LLM
-ADR-008 provider conversation state is non-canonical
-ADR-009 Worlds mediate external execution
-ADR-010 no unbounded queues in runtime hot paths
-```
-
-An ADR should contain:
-
-- context;
-- decision;
-- alternatives;
-- consequences;
-- status;
-- revisit trigger.
-
----
-
-# 5. Architecture review checklist
-
-Before declaring A0 complete, review the system horizontally.
+Every future change must still survive these horizontal questions.
 
 ## Crash at every boundary
-
-Ask:
 
 ```text
 what if daemon dies here?
 ```
 
-for every arrow in the architecture.
-
 ## Slow consumer at every stream
 
-Ask:
-
 ```text
-what if this consumer stops reading for 10 minutes?
+what if consumer stops reading for 10 minutes?
 ```
 
-## Huge input at every payload
-
-Ask:
+## Huge payload
 
 ```text
-what if this output is 10 GB?
+what if output is 10 GB?
 ```
 
 ## Recursive explosion
 
-Ask:
-
 ```text
-what if 100 children each spawn 100 children?
+what if 100 children each request 100 children?
 ```
 
 ## Malicious model output
 
-Ask:
-
 ```text
-what if the model deliberately requests the most damaging valid-looking action?
+what if model deliberately requests the most damaging valid-looking action?
 ```
 
 ## Long lifetime
-
-Ask:
 
 ```text
 what changes after 1 hour, 1 day, 30 days?
 ```
 
-If runtime cost scales with history where it should scale with active state, redesign it.
+If cost scales with lifetime history where it should scale with active state, redesign it.
 
 ---
 
-# 6. A0 completion criteria
+# 5. A0 exit criteria result
 
-A0 is complete when:
+| Criterion | Result |
+|---|---|
+| high-priority primitives have written contracts | PASS |
+| core state machines documented | PASS |
+| canonical vs ephemeral state known | PASS |
+| persistence/event boundaries specified | PASS |
+| concurrency/backpressure specified | PASS |
+| critical failure/recovery semantics exist | PASS |
+| deterministic security/effect boundaries exist | PASS |
+| TUI is thin/reconnectable | PASS |
+| long-session tests are specified | PASS |
+| deferred research isolated from G0/G1 | PASS |
+| foundation decisions recorded | PASS |
+| G0 tasks derivable without new semantics | PASS |
 
-1. every high-priority primitive has a written contract;
-2. core state machines are documented;
-3. canonical vs ephemeral data is known;
-4. persistence/event boundaries are specified;
-5. concurrency ownership and backpressure are specified;
-6. failure/recovery tables exist for critical operations;
-7. security/effect rules are deterministic at kernel boundaries;
-8. TUI remains a thin attachable client by design;
-9. long-session performance requirements have concrete tests;
-10. major unresolved research questions are explicitly isolated from G0/G1;
-11. initial ADRs are accepted;
-12. G0 implementation tasks can be derived without inventing new semantics during coding.
+**A0 status: PASS.**
 
 ---
 
-# 7. What A0 does not mean
+# 6. What remains empirical
 
-A0 does not mean predicting every implementation detail perfectly.
-
-We should still prototype uncertain low-level choices.
-
-The distinction is:
+These are adapter/policy validations, not architecture blockers:
 
 ```text
-prototype to validate a documented question
+modernc SQLite benchmark/soak vs alternate driver
+Git worktree dirty-state implementation details
+Unix/Windows process-tree cancellation edge cases
+OCI runtime feature adapter
+MMU ranking/page-size thresholds
+Epistemic confidence/consolidation heuristics
+Scheduler utility/latency weights
+TUI library choice
 ```
 
-rather than:
-
-```text
-write production code and discover what the architecture means afterward
-```
+If an empirical result proves a semantic invariant impossible, A0 must be amended explicitly through an ADR/contract change.
 
 ---
 
-# Immediate direction
+# 7. Next phase
 
-The current repository is now in **A0**, not G0.
+The next phase is:
 
-Next architecture work should deepen the highest-coupling primitives first:
+```text
+G0 — Foundations
+```
 
-1. exact Agent Process + syscall state machines;
-2. exact event/catalog/persistence model;
-3. World/action/effect protocol;
-4. authority/intent policy model;
-5. runtime↔TUI IPC/projection protocol;
-6. Cognitive MMU page/working-set algorithms;
-7. transaction/fork semantics.
+But G0 begins only when explicitly requested.
 
-Only after these contracts stabilize should implementation start.
+G0's job is now to **implement** the existing contracts, not invent them.
