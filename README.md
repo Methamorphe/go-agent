@@ -110,6 +110,7 @@ The project currently focuses on these proposed primitives:
 - [Security, authority, intents and effects](docs/SECURITY_AND_EFFECTS.md)
 - [Orchestration, subagents and model scheduling](docs/ORCHESTRATION.md)
 - [Innovation catalog / research agenda](docs/INNOVATIONS.md)
+- [Product and runtime requirements](docs/REQUIREMENTS.md)
 - [Implementation roadmap](docs/ROADMAP.md)
 
 ## Scope
