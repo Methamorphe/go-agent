@@ -1,18 +1,18 @@
 # Architecture Decisions
 
-## Purpose
+## Status
 
-This is the initial decision log for architecture phase A0.
+**A0 decision log — semantic decisions closed.**
 
-It is intentionally lighter than one-file-per-ADR while the design is moving quickly. Before implementation, decisions that become high-cost to reverse can be split into formal ADR files.
+See `A0_EXIT_REVIEW.md` for the architecture gate result.
 
 Statuses:
 
 ```text
-ACCEPTED      current architecture baseline
-PROVISIONAL   direction accepted but prototype/measurement may change details
-OPEN          must be decided before relevant implementation milestone
-DEFERRED      intentionally not decided yet
+ACCEPTED      semantic baseline; implementation must follow
+PROVISIONAL   concrete adapter/package baseline; measurable evidence may replace it
+EMPIRICAL     thresholds/mechanics validated during prototype/implementation
+DEFERRED      intentionally excluded from early milestones
 ```
 
 ---
@@ -21,48 +21,37 @@ DEFERRED      intentionally not decided yet
 
 **Status:** ACCEPTED
 
-Use Go for the durable runtime, supervisor, scheduler, policy boundaries, storage integration and local control plane. Python may exist as an Execution World/runtime when dynamic computation is useful.
+Use Go for runtime daemon, durable process supervision, Event Ledger/reducers, MMU, memory, policy, scheduler, IPC and storage integration.
 
-Why: concurrency/process/networking model, single-binary distribution, daemon/service fit, operational simplicity, sufficient performance and explicit interfaces.
+Python is an Execution World. Rust/native helpers are optional future measured optimizations only.
 
 ---
 
-# D002 — Durable runtime is separate from the TUI
+# D002 — Runtime is separate from the TUI
 
 **Status:** ACCEPTED
 
-The terminal is a local client attached to a durable runtime process/daemon. One distributable binary may expose both modes, but state ownership is separate.
-
-Consequences:
-
-- UI restart does not kill agents;
-- transcript rendering cannot become canonical state;
-- detached agents continue;
-- history is paginated;
-- slow UI has independent backpressure;
-- local IPC/projection API required.
-
-See `LOCAL_CONTROL_PROTOCOL.md` and `TUI_AND_STREAMING.md`.
+TUI is a disposable local client over IPC. Closing/crashing it never owns or destroys canonical Agent Process state.
 
 ---
 
-# D003 — SQLite + filesystem object store for local-first persistence
+# D003 — Local persistence is SQLite + content-addressed Object Store
 
-**Status:** PROVISIONAL
+**Status:** ACCEPTED architecture / PROVISIONAL driver
 
-Use SQLite for canonical metadata/events/projections and a streaming filesystem content-addressed object store for large immutable payloads.
+Canonical metadata/events/projections use SQLite.
 
-Revisit if measured SQLite behavior under realistic concurrency or future multi-node requirements becomes unsuitable.
+Large immutable payloads use a streaming filesystem Object Store.
+
+Initial driver: `modernc.org/sqlite`, behind internal adapter.
 
 ---
 
-# D004 — Event-sourced process transitions, but not byte/token event sourcing
+# D004 — Event-source meaningful transitions, not token/byte streams
 
 **Status:** ACCEPTED
 
-Meaningful canonical transitions are append-only events. High-volume model tokens/stdout bytes use bounded streams + object storage and are represented by lifecycle/outcome events.
-
-See `EVENT_MODEL_AND_CATALOG.md`.
+Canonical events represent state transitions. Model tokens/stdout bytes are streamed/object-backed.
 
 ---
 
@@ -70,365 +59,433 @@ See `EVENT_MODEL_AND_CATALOG.md`.
 
 **Status:** ACCEPTED
 
-The LLM context is never canonical long-term Agent Process memory. Cognitive MMU constructs a bounded working set from durable pages/objects/memory.
-
-See `COGNITIVE_MMU_V0_ALGORITHM.md`.
+Canonical knowledge/state exists outside model context. Cognitive MMU builds bounded Context Manifests per invocation.
 
 ---
 
-# D006 — No prompt-only security
+# D006 — Security is enforced outside the model
 
 **Status:** ACCEPTED
 
-Capabilities, delegation, effects, budgets and critical policy are enforced outside the model. Tools/Worlds never receive state-changing model requests without kernel mediation.
+Capabilities, Intent, effects, budgets and approvals are kernel/runtime policy objects. Prompt text cannot create authority.
 
 ---
 
-# D007 — Provider thread/session IDs are non-canonical
+# D007 — Provider conversation/thread state is non-canonical
 
 **Status:** ACCEPTED
 
-Agent identity/state cannot depend on hosted provider conversation objects. Model requests are constructed from runtime-owned context/state.
+Agent identity persists across model/provider switches and provider outages.
 
 ---
 
-# D008 — No unbounded queues in runtime hot paths
+# D008 — No unbounded hot-path queues
 
 **Status:** ACCEPTED
 
-All producer/consumer boundaries define capacity or another bounded strategy such as coalescing/spill-to-disk/rejection.
-
-See `CONCURRENCY_AND_BACKPRESSURE.md`.
+Every producer/consumer boundary has capacity, backpressure, coalescing, spill or rejection semantics.
 
 ---
 
-# D009 — Large I/O is streaming by default
+# D009 — Large I/O streams by default
 
 **Status:** ACCEPTED
 
-Tool output, model response persistence, file/artifact transfer and object storage use streaming readers/writers rather than mandatory full-buffer APIs.
+Tool/model/artifact APIs do not require full-buffer `[]byte` materialization.
 
 ---
 
-# D010 — Canonical waiting state does not require resident execution
+# D010 — Waiting/sleeping Agent Processes are non-resident logical state
 
 **Status:** ACCEPTED
 
-Sleeping/waiting Agent Processes are persisted state machines. They do not need one goroutine/ticker each. Central durable scheduler/timer structures are rebuilt after restart.
-
-See `AGENT_PROCESS_STATE_MACHINE.md`.
+No one-goroutine/ticker-per-sleeper design.
 
 ---
 
-# D011 — Recursive agents are durable child processes, not helper prompts
+# D011 — Recursive agents are durable child processes
 
 **Status:** ACCEPTED
 
-`spawn()` creates a child Agent Process with independent state/context/authority/budget. Child creation is durable before execution scheduling.
+`spawn()` validates delegated task/authority/budget and durably creates process before scheduling execution.
 
 ---
 
-# D012 — Effects are first-class metadata
+# D012 — Effects are first-class typed metadata
 
 **Status:** ACCEPTED
 
-Actions carry typed effect semantics such as Pure/Read/Reversible/Compensatable/Irreversible plus traits. Effect descriptors participate in authorization before World execution.
-
----
-
-# D013 — Unknown outcomes are explicit
-
-**Status:** ACCEPTED
-
-When an external mutation may or may not have happened, represent `OutcomeUnknown` and reconcile before retry.
-
----
-
-# D014 — Speculative execution requires isolated World state
-
-**Status:** ACCEPTED at semantic level
-
-A Cognitive Fork is not merely two prompts. Mutating alternatives require isolated World state. Unsupported Worlds reject/degrade explicitly.
-
-See `TRANSACTIONS_AND_COGNITIVE_FORKS.md`.
-
----
-
-# D015 — Self-improvement is versioned and evaluated
-
-**Status:** ACCEPTED at semantic level / DEFERRED implementation
-
-Prompts, skills, routing/context policies and agent profiles cannot mutate silently. Candidate changes require versioning/evaluation/promotion/rollback.
-
----
-
-# D016 — Event ordering uses process version + local ledger sequence + causal references
-
-**Status:** ACCEPTED for local-first v0
-
-Use:
+Initial classes:
 
 ```text
-process-local monotonic version
-+
-local global ledger sequence
-+
-EventID / causation / correlation references
+Pure
+Read
+Reversible
+Compensatable
+Irreversible
 ```
 
-Timestamps are metadata, not correctness ordering.
-
-Expected process version provides optimistic concurrency.
-
-See `EVENT_MODEL_AND_CATALOG.md`.
-
-Revisit for G13 distributed execution if required.
+Model cannot downgrade trusted effect floor.
 
 ---
 
-# D017 — Local control protocol uses framed versioned messages and cursor history
+# D013 — Unknown external outcomes are first-class
 
-**Status:** PROVISIONAL at encoding/transport detail, ACCEPTED semantics
+**Status:** ACCEPTED
 
-Protocol semantics:
-
-- local Unix socket / named pipe preferred;
-- explicit length framing;
-- versioned envelopes;
-- JSON payloads initially for debugability;
-- cursor-based conversation history;
-- bounded per-client queues;
-- reconstructable presentation stream;
-- object references/streaming for large artifacts.
-
-See `LOCAL_CONTROL_PROTOCOL.md`.
-
-Encoding can change after benchmark without changing message semantics.
+Dispatched mutation with ambiguous result becomes `OutcomeUnknown` and must reconcile before unsafe retry/edit.
 
 ---
 
-# D018 — Capability model is typed and subset-decidable
+# D014 — Speculative mutation requires isolated World state
 
-**Status:** ACCEPTED for v0 direction
+**Status:** ACCEPTED
 
-Initial capability families:
+A Cognitive Fork is not two prompts sharing one mutable workspace.
+
+---
+
+# D015 — Self-improvement is versioned/evaluated/reversible
+
+**Status:** ACCEPTED semantics / DEFERRED implementation
+
+No silent in-place prompt/skill/routing/context-policy mutation.
+
+---
+
+# D016 — Cognitive references form a stable semantic address space
+
+**Status:** ACCEPTED
+
+Use stable reference families such as:
 
 ```text
-FilesystemCapability
-ProcessCapability
-NetworkCapability
-SecretCapability
-AgentCapability
-WorldCapability
+ctx://
+belief://
+evidence://
+object://
+event://
+checkpoint://
+agent://
 ```
 
-Delegation must support deterministic subset/intersection checks. Do not build a general arbitrary policy language in v0.
-
-See `CAPABILITY_AND_INTENT_MODEL.md`.
+Storage implementation IDs are not the cognitive ABI.
 
 ---
 
-# D019 — World actions are immutable authorized descriptors
+# D017 — Context Faults occur at invocation/tool boundaries
 
-**Status:** ACCEPTED semantics
+**Status:** ACCEPTED
 
-The model does not send arbitrary execution JSON directly to a World. Kernel parses/validates, derives effects, authorizes and produces an immutable `AuthorizedAction` with explicit AgentID/WorldID/effects/output policy.
+Correctness never depends on provider-specific mid-token inference suspension/resume.
 
-Large outputs stream via object sink + bounded preview.
-
-See `WORLD_ACTION_AND_EFFECT_PROTOCOL.md`.
+Explicit recall/reference path is canonical; advanced interception is optional later optimization.
 
 ---
 
-# D020 — Cognitive MMU v0 is deterministic and explicit-recall-first
+# D018 — Context Page granularity is semantic-first
 
-**Status:** ACCEPTED for G4 baseline
+**Status:** ACCEPTED semantics / EMPIRICAL tuning
 
-v0 uses:
-
-- hard token budget;
-- tiered mandatory/active/recalled/relevant/recent context;
-- deterministic explainable ranking/packing;
-- explicit `recall()`;
-- context manifests;
-- structured compaction links.
-
-No learned ranking or magical mid-stream Context Fault required initially.
-
-See `COGNITIVE_MMU_V0_ALGORITHM.md`.
+Prefer semantic units (symbol/section/turn/cluster) then split by size. Initial tuning target roughly 800–2,000 tokens, normal ceiling ~4k.
 
 ---
 
-# D021 — Transactions do not claim generic distributed ACID
+# D019 — Memory preserves raw episodes/evidence
 
-**Status:** ACCEPTED semantic boundary
+**Status:** ACCEPTED
 
-Agent Transactions guarantee only what the participating World/effect mechanisms can actually provide. Irreversible effects are deferred/barriered when possible, and commit conflicts/unknown outcomes require reconciliation.
-
-First concrete target: isolated developer workspace using Git worktree/OCI-like semantics with objective verification.
-
-See `TRANSACTIONS_AND_COGNITIVE_FORKS.md`.
+Consolidated memory never replaces the original evidence required for provenance/re-evaluation.
 
 ---
 
-# Open decisions required before G0/G1
+# D020 — Provenance cannot be amplified by consolidation
 
-## O001 — SQLite driver
+**Status:** ACCEPTED
 
-**Status:** OPEN
+Rewriting untrusted evidence into a polished memory does not upgrade source trust/authority.
 
-Candidates:
-
-- pure-Go SQLite implementation;
-- CGO SQLite binding.
-
-Criteria:
-
-- reliability;
-- platform distribution;
-- WAL/concurrency behavior;
-- backup API/features;
-- performance;
-- build complexity.
-
-Do not choose solely to avoid CGO without measuring tradeoffs.
+Memory never mints operational capability.
 
 ---
 
-## O002 — Snapshot serialization format
+# D021 — Beliefs use typed provenance/dependency/contradiction semantics
 
-**Status:** OPEN
+**Status:** ACCEPTED
 
-Need versioned, deterministic-enough format and migration strategy.
+Confidence is multidimensional metadata, not a naked LLM probability treated as truth.
 
-Candidates include JSON, CBOR/msgpack-like formats, protobuf-like schema or another typed encoding.
-
-Optimize for evolvability/debuggability before raw size.
+Truth Maintenance propagates staleness locally through typed graph edges.
 
 ---
 
-## O003 — Exact G1 activation lease representation
+# D022 — Capability and Intent are independent mandatory authorization dimensions
 
-**Status:** OPEN, narrow
+**Status:** ACCEPTED
 
-Single-daemon v0 can likely rely on optimistic process version + runtime execution lease metadata. Need exact persisted fields/recovery behavior before G1 code.
+Capability defines maximum technical authority. Intent defines current task/effect/resource boundary.
 
-Distributed heartbeat/lease semantics remain G13.
-
----
-
-# Decisions before final TUI implementation
-
-## O004 — Exact local IPC transport implementation
-
-**Status:** PROVISIONAL semantics, implementation OPEN
-
-Semantics/framing are specified. Need choose actual libraries/platform implementation for Unix sockets/named pipes and local ownership security.
-
-## O005 — TUI library
-
-**Status:** DEFERRED / benchmark-driven
-
-Bubble Tea or another library is acceptable only if it supports long-history virtualization and bounded incremental rendering cleanly.
+Both must pass.
 
 ---
 
-# Open decisions before controlled execution milestones
+# D023 — Actions carry structural purpose references
 
-## O006 — Filesystem selector/path grammar details
+**Status:** ACCEPTED
 
-**Status:** OPEN, bounded by accepted typed-capability design
-
-Need exact path canonicalization/glob/symlink semantics while preserving decidable subset checks across Worlds/platforms.
-
-## O007 — Dynamic effect classification details
-
-**Status:** OPEN, semantics constrained
-
-Static action definition sets minimum safe effect. Runtime/World can strengthen/refine, never weaken. Need exact descriptor merging rules.
-
-## O008 — Local process-tree termination contract
-
-**Status:** OPEN
-
-Research/test macOS/Linux/Windows descendant process termination, job/process-group semantics and timeout guarantees.
+Meaningful actions reference current Task Intent / plan / acceptance criteria and produce a versioned Action Proof for authorization observability.
 
 ---
 
-# Open research decisions before Cognitive MMU milestone
+# D024 — Semantic intent evaluation is non-authoritative
 
-## O009 — Context-page granularity
+**Status:** ACCEPTED
 
-File/section/message/tool-result sizing and segmentation policy.
+A semantic evaluator can detect ambiguity/drift but cannot override hard capability/domain/resource denial or grant missing authority.
 
-## O010 — Token estimator implementations
-
-Provider/model-specific tokenizers vs conservative estimators/caches.
-
-## O011 — Structured compaction triggers
-
-When raw pages become summaries and how aggressively old raw pages leave default candidate sets.
-
-Ranking/packing baseline itself is now defined in `COGNITIVE_MMU_V0_ALGORITHM.md`.
+High-risk irreversible actions need explicit policy/approval.
 
 ---
 
-# Open research decisions before Transactions/Forks
+# D025 — Worlds advertise concrete guarantees
 
-## O012 — Local isolated workspace implementation
+**Status:** ACCEPTED
 
-**Status:** OPEN
+LocalWorld is host-mediated, not a sandbox.
 
-Candidates:
-
-- Git worktrees;
-- copy-on-write filesystem strategy;
-- OCI overlay layers;
-- combinations.
-
-Semantics/promotion requirements are defined; implementation must be benchmarked cross-platform.
-
-## O013 — Exact commit/promotion mechanism
-
-**Status:** OPEN
-
-Need concrete workspace promotion protocol, base-divergence handling and crash reconciliation for selected first World.
-
-## O014 — Cognitive overlay merge details
-
-**Status:** OPEN
-
-Current preferred semantics: branch context/memory are overlays and promotion is selective. Need exact merge rules before G8.
+Snapshot/fork/promotion/network/resource guarantees are discovered and policy-matched.
 
 ---
 
-# Open research decisions before Epistemic Memory
+# D026 — Process-tree ownership is platform-specific behind one adapter
 
-## O015 — Belief representation
+**Status:** ACCEPTED semantics / EMPIRICAL adapter
 
-Free-text statement + metadata versus partially structured predicates/types.
-
-Likely start text-first with typed scope/provenance/status.
-
-## O016 — Confidence semantics
-
-Avoid representing arbitrary LLM confidence as objective probability. Define evidence categories/signals/ranking behavior.
-
-## O017 — Dependency-edge types
-
-Differentiate derivation, support, contradiction, supersession and weak association.
+Unix-like systems use process-group/session semantics; Windows uses Job Objects.
 
 ---
 
-# Decision discipline
+# D027 — First coding mutation isolation is Git-aware WorkspaceWorld
 
-Before coding a high-cost open decision:
+**Status:** ACCEPTED semantics / EMPIRICAL mechanics
 
-1. state the question;
-2. list 2–4 realistic options;
-3. define evaluation criteria;
-4. prototype/benchmark if uncertainty is empirical;
-5. record selected decision and consequences;
-6. define what evidence would make us revisit it.
+Capture base + dirty/untracked policy, run branch in isolated workspace/worktree, verify, detect target divergence, three-way promote.
 
-The goal is not to eliminate change. It is to make change intentional rather than accidental.
+---
+
+# D028 — Restore creates a new timeline; history is never truncated
+
+**Status:** ACCEPTED
+
+Checkpoint/fork/restore/merge are execution edits that preserve historical events/external effects.
+
+---
+
+# D029 — v0 mutation-capable forks require quiescent checkpoints
+
+**Status:** ACCEPTED
+
+No unresolved state-changing in-flight operation, unknown mutation outcome or commit critical section.
+
+Advanced non-quiescent exact edit safety is DEFERRED research.
+
+---
+
+# D030 — Merge is three-way and cognitive promotion is selective
+
+**Status:** ACCEPTED
+
+World state merges relative to explicit base. Branch transcript/speculative assumptions are not automatically unioned into parent memory.
+
+---
+
+# D031 — Commit protocol is prepare/apply/verify/finalize with reconciliation
+
+**Status:** ACCEPTED
+
+Use a short promotion lease to prevent stale concurrent promotion. Crash during uncertain APPLY becomes `NeedsReconciliation`.
+
+No generic distributed ACID claim.
+
+---
+
+# D032 — Recursive orchestration uses durable contracts and bounded mailboxes
+
+**Status:** ACCEPTED
+
+Parent waits are durable, fan-out/depth are bounded, wait-for cycles are detected, large inter-agent payloads use refs.
+
+---
+
+# D033 — Agent negotiation is finite/evidence-oriented
+
+**Status:** ACCEPTED
+
+Use claim/challenge/evidence/counterexample/revision/agreement-or-escalation with explicit round/time/budget limits.
+
+---
+
+# D034 — Model routing occurs per Cognitive Task, not per Agent lifetime
+
+**Status:** ACCEPTED
+
+Model is schedulable execution resource; Agent Process owns durable identity/state.
+
+---
+
+# D035 — Scheduler hard-filters before utility scoring
+
+**Status:** ACCEPTED
+
+Privacy/context/capability/health/risk/budget constraints remove candidates before cost/latency/quality scoring.
+
+---
+
+# D036 — Scheduler reserves resources before fan-out
+
+**Status:** ACCEPTED
+
+Budget/concurrency reservations prevent recursive oversubscription. Actual usage settles and unused reservation releases exactly once.
+
+---
+
+# D037 — Learned routing/MMU policies are later evaluated artifacts
+
+**Status:** ACCEPTED semantics / DEFERRED implementation
+
+v0 is deterministic/rule-based. Learned policies use replay/shadow/canary/promotion/rollback and cannot override hard constraints.
+
+---
+
+# D038 — `database/sql` + explicit SQL, no kernel ORM
+
+**Status:** ACCEPTED
+
+Correctness-critical transaction/query semantics remain explicit.
+
+---
+
+# D039 — SQLite starts reliability-first
+
+**Status:** ACCEPTED baseline / EMPIRICAL performance
+
+Initial profile:
+
+```text
+WAL
+foreign_keys=ON
+bounded busy_timeout
+synchronous=FULL
+```
+
+Relax durability only from measured evidence and explicit consequence review.
+
+---
+
+# D040 — Canonical events and snapshots use versioned JSON v0
+
+**Status:** ACCEPTED
+
+Events are coarse/small; snapshots are rebuildable optimization. Large payloads stay object-backed.
+
+---
+
+# D041 — Object Store uses SHA-256 content addressing v0
+
+**Status:** ACCEPTED
+
+Stream temporary → hash/size → durable finalize → SQLite reference commit.
+
+---
+
+# D042 — Local IPC uses UDS/named pipe + length-framed JSON envelopes
+
+**Status:** ACCEPTED
+
+macOS/Linux use Unix domain socket; Windows named pipe. Loopback TCP only explicit fallback.
+
+Large artifacts never fit one normal IPC frame.
+
+---
+
+# D043 — SQLite FTS is lexical retrieval baseline
+
+**Status:** ACCEPTED baseline
+
+Embedding/vector index is optional derived signal, never correctness dependency.
+
+---
+
+# D044 — TUI library is benchmark-selected later
+
+**Status:** EMPIRICAL / DEFERRED until fixture
+
+Architecture is independent from Bubble Tea or any other library. Candidate must pass long-history/bounded-render benchmarks.
+
+---
+
+# Remaining empirical validation — not semantic OPEN decisions
+
+## E001 SQLite driver
+
+Baseline `modernc.org/sqlite`; compare soak/crash/concurrency/performance with mature alternate binding before reliability claim.
+
+## E002 Git WorkspaceWorld implementation
+
+Validate exact worktree/dirty/untracked capture and promotion mechanics.
+
+## E003 Cross-platform process-tree cancellation
+
+Validate Unix/macOS process-group and Windows Job Object edge cases.
+
+## E004 MMU tuning
+
+Tune page sizes/ranking/compaction/fault budgets without changing semantic contracts.
+
+## E005 Epistemic Memory heuristics
+
+Tune confidence/consolidation/auto-resolution policies.
+
+## E006 Scheduler heuristics
+
+Tune quality priors/utility/latency/hedging.
+
+## E007 TUI library
+
+Select from benchmark evidence.
+
+---
+
+# Explicit deferred research
+
+```text
+provider-specific mid-token context paging
+non-quiescent exact checkpoint/fork/restore/merge
+learned MMU ranking
+learned scheduler
+strong automatic truth resolution
+multi-tenant/remote hardened sandbox
+distributed control plane/event ledger
+full process-identity branch promotion
+continual-improvement implementation
+```
+
+These are not G0/G1 blockers.
+
+---
+
+# Decision discipline after A0
+
+A high-coupling semantic change requires:
+
+```text
+problem/invariant
+alternatives
+selected change
+persisted-state compatibility
+security/failure/performance impact
+test updates
+revisit trigger
+```
+
+Implementation is not allowed to silently replace the specification.
