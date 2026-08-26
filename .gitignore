@@ -1,0 +1,72 @@
+# Binaries
+bin/
+dist/
+build/
+out/
+
+# Go binaries
+go-agent
+go-agent.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test / coverage
+*.test
+*.out
+coverage/
+coverage.out
+
+# Profiling
+*.prof
+*.pprof
+cpu.prof
+memory.prof
+heap.prof
+trace.out
+
+# Runtime data
+data/
+runtime-data/
+.go-agent/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Temporary object store / artifacts
+objects/
+artifacts/
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Linux
+.directory
+
+# Local tools
+.air.toml
+.air/
