@@ -145,29 +145,40 @@ The project currently focuses on these proposed primitives:
 
 - [Architecture gate / pre-development A0 phase](docs/ARCHITECTURE_GATE.md)
 - [Master architecture contracts for all 25 concepts](docs/CONCEPT_CONTRACTS.md)
+- [Architecture decisions and open decisions](docs/ARCHITECTURE_DECISIONS.md)
 - [Vision and product thesis](docs/VISION.md)
 - [Product and runtime requirements](docs/REQUIREMENTS.md)
 
-### Runtime architecture
+### Core runtime contracts
 
 - [Target architecture and kernel model](docs/ARCHITECTURE.md)
+- [Agent Process state machine](docs/AGENT_PROCESS_STATE_MACHINE.md)
+- [Event model, ordering and initial catalog](docs/EVENT_MODEL_AND_CATALOG.md)
 - [State, persistence and storage](docs/STATE_PERSISTENCE_AND_STORAGE.md)
 - [Concurrency, supervision and backpressure](docs/CONCURRENCY_AND_BACKPRESSURE.md)
 - [Failure model and recovery semantics](docs/FAILURE_MODEL_AND_RECOVERY.md)
+- [World action and Effect protocol](docs/WORLD_ACTION_AND_EFFECT_PROTOCOL.md)
+- [Capability, delegation and Intent model](docs/CAPABILITY_AND_INTENT_MODEL.md)
+- [Agent Transactions and Cognitive Forks](docs/TRANSACTIONS_AND_COGNITIVE_FORKS.md)
+
+### Long-session UI/performance
+
 - [Reliability, stability and long-session performance](docs/RELIABILITY_AND_PERFORMANCE.md)
 - [TUI, streaming, attach/detach and history virtualization](docs/TUI_AND_STREAMING.md)
+- [Local runtime control / IPC protocol](docs/LOCAL_CONTROL_PROTOCOL.md)
+- [Testing, benchmarks and quality gates](docs/TESTING_BENCHMARKS_AND_QUALITY_GATES.md)
 
 ### Cognitive/security/orchestration architecture
 
 - [Cognitive runtime, context and memory](docs/COGNITIVE_RUNTIME.md)
+- [Cognitive MMU v0 algorithm](docs/COGNITIVE_MMU_V0_ALGORITHM.md)
 - [Security, authority, intents and effects](docs/SECURITY_AND_EFFECTS.md)
 - [Orchestration, subagents and model scheduling](docs/ORCHESTRATION.md)
 
-### Research, validation and roadmap
+### Research and roadmap
 
 - [Prime Agent inspiration and what we change](docs/PRIME_AGENT_INSPIRATION.md)
 - [Innovation catalog / research agenda](docs/INNOVATIONS.md)
-- [Testing, benchmarks and quality gates](docs/TESTING_BENCHMARKS_AND_QUALITY_GATES.md)
 - [Implementation roadmap](docs/ROADMAP.md)
 
 ## Long-session reliability objective
@@ -189,7 +200,7 @@ centralized durable timers
 explicit concurrency/resource budgets
 ```
 
-A future anti-regression suite will include 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic 100k-message histories.
+The anti-regression suite is designed around 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic 100k-message histories.
 
 ## Scope
 
