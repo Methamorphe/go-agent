@@ -144,10 +144,11 @@ The architecture currently defines these primitives:
 ### Start here
 
 - [A0 Exit Review — architecture gate result](docs/A0_EXIT_REVIEW.md)
+- [Canonical concept status registry](docs/CONCEPT_STATUS.md)
 - [Architecture gate](docs/ARCHITECTURE_GATE.md)
 - [Architecture decisions](docs/ARCHITECTURE_DECISIONS.md)
 - [Foundation technical decisions for G0](docs/FOUNDATION_TECHNICAL_DECISIONS.md)
-- [Master architecture contracts for all concepts](docs/CONCEPT_CONTRACTS.md)
+- [Original concept architecture checklist](docs/CONCEPT_CONTRACTS.md) — historical per-concept design notes; current status labels are superseded by `CONCEPT_STATUS.md` and the A0 Exit Review
 - [Vision and product thesis](docs/VISION.md)
 - [Product and runtime requirements](docs/REQUIREMENTS.md)
 
