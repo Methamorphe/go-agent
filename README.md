@@ -6,6 +6,25 @@ An experimental **durable runtime / kernel for autonomous AI agents**, written i
 
 The goal is not to build “another coding-agent CLI”, nor to port Prime Agent line-for-line to Go. The project explores a lower-level execution model for long-running intelligent processes: durable state, managed context, recursive agents, isolation, explicit authority, reversible actions, speculative execution, model scheduling, and verifiable self-improvement.
 
+## Current phase
+
+**A0 — Architecture & Semantics. No runtime development yet.**
+
+Before implementing G0, every important primitive must be architected in terms of:
+
+- problem and rationale;
+- semantics/state machine;
+- canonical vs ephemeral state;
+- invariants;
+- concurrency ownership and backpressure;
+- failure/recovery behavior;
+- authority/effects;
+- performance/resource bounds;
+- observability;
+- tests and benchmarks.
+
+The runtime is explicitly designed for **long-lived stability**: agent history may grow for hours or days, but hot memory, active LLM context and terminal rendering work must remain bounded.
+
 ## Vision
 
 Most current agents are built around a loop:
@@ -50,6 +69,21 @@ Applications / Harnesses
    Browser / Python / MCP / …
 ```
 
+The interactive architecture deliberately separates the terminal from the runtime:
+
+```text
+Thin TUI / future IDE/Web clients
+              │
+          local IPC
+              │
+              ▼
+      Durable Runtime Daemon
+              │
+     SQLite + Object Store
+```
+
+Closing or crashing the TUI must not kill an active agent.
+
 ## Why Go?
 
 Go is deliberately chosen for the runtime/kernel layer:
@@ -79,6 +113,10 @@ Python remains useful as an **execution world** when a persistent REPL, notebook
 10. **Self-improvement must be evaluated, versioned and reversible.**
 11. **The runtime should remain useful beyond coding agents.**
 12. **The product name and UX are intentionally deferred until the execution model is solid.**
+13. **Hot state is bounded.** History can grow; RAM/context/TUI work must not scale linearly with lifetime history.
+14. **Backpressure is explicit.** No hidden unbounded queue is allowed in runtime hot paths.
+15. **Unknown is a real state.** Partial external failures are never rewritten as false success/failure certainty.
+16. **Presentation is disposable.** The terminal is a client, never the owner of canonical agent state.
 
 ## Primary innovations under exploration
 
@@ -103,15 +141,55 @@ The project currently focuses on these proposed primitives:
 
 ## Documentation
 
+### Start here
+
+- [Architecture gate / pre-development A0 phase](docs/ARCHITECTURE_GATE.md)
+- [Master architecture contracts for all 25 concepts](docs/CONCEPT_CONTRACTS.md)
 - [Vision and product thesis](docs/VISION.md)
-- [Prime Agent inspiration and what we change](docs/PRIME_AGENT_INSPIRATION.md)
+- [Product and runtime requirements](docs/REQUIREMENTS.md)
+
+### Runtime architecture
+
 - [Target architecture and kernel model](docs/ARCHITECTURE.md)
+- [State, persistence and storage](docs/STATE_PERSISTENCE_AND_STORAGE.md)
+- [Concurrency, supervision and backpressure](docs/CONCURRENCY_AND_BACKPRESSURE.md)
+- [Failure model and recovery semantics](docs/FAILURE_MODEL_AND_RECOVERY.md)
+- [Reliability, stability and long-session performance](docs/RELIABILITY_AND_PERFORMANCE.md)
+- [TUI, streaming, attach/detach and history virtualization](docs/TUI_AND_STREAMING.md)
+
+### Cognitive/security/orchestration architecture
+
 - [Cognitive runtime, context and memory](docs/COGNITIVE_RUNTIME.md)
 - [Security, authority, intents and effects](docs/SECURITY_AND_EFFECTS.md)
 - [Orchestration, subagents and model scheduling](docs/ORCHESTRATION.md)
+
+### Research, validation and roadmap
+
+- [Prime Agent inspiration and what we change](docs/PRIME_AGENT_INSPIRATION.md)
 - [Innovation catalog / research agenda](docs/INNOVATIONS.md)
-- [Product and runtime requirements](docs/REQUIREMENTS.md)
+- [Testing, benchmarks and quality gates](docs/TESTING_BENCHMARKS_AND_QUALITY_GATES.md)
 - [Implementation roadmap](docs/ROADMAP.md)
+
+## Long-session reliability objective
+
+A session should be able to run for hours/days without becoming progressively heavier simply because it is old.
+
+The architecture therefore requires:
+
+```text
+bounded LLM working context
+bounded in-memory caches
+bounded queues
+streaming tool/model I/O
+large payloads in object storage
+snapshots + tail replay
+paginated/virtualized TUI history
+coalesced token rendering
+centralized durable timers
+explicit concurrency/resource budgets
+```
+
+A future anti-regression suite will include 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic 100k-message histories.
 
 ## Scope
 
@@ -142,9 +220,9 @@ The project currently focuses on these proposed primitives:
 
 ## Status
 
-**Design / research phase.**
+**A0 — architecture / semantics / research phase.**
 
-The repository currently documents the execution model first. Implementation should begin with a minimal vertical slice proving durable Agent Processes, Worlds, the Event Ledger, a small syscall surface and a model/tool loop before adding advanced cognition.
+The repository is intentionally staying out of implementation until the high-coupling runtime contracts are strong enough that G0/G1 can be coded without inventing fundamental semantics on the fly.
 
 ## Naming
 
