@@ -1,12 +1,75 @@
-# Implementation Roadmap
+# Roadmap
 
 ## Strategy
 
-The project should avoid starting as a giant framework. Each milestone must prove one architectural property with tests and observable behavior.
+The project uses two phases:
 
-The roadmap uses `Gx` generations. A generation is complete only when its invariants are tested and documented.
+```text
+A0  Architecture & Semantics
+ ↓
+G0… Implementation generations
+```
+
+**The project is currently in A0.**
+
+No runtime implementation should begin until the high-coupling semantics required by G0/G1 are sufficiently specified. See `ARCHITECTURE_GATE.md`.
+
+A generation is complete only when its invariants, failure behavior and non-functional claims are tested and documented.
 
 The working product name remains **TBD**.
+
+---
+
+# A0 — Architecture & Semantics
+
+## Goal
+
+Design the execution model deeply enough that implementation validates decisions instead of inventing fundamental semantics ad hoc.
+
+## Required architecture workstreams
+
+- Agent Process state machine and Agent Syscalls;
+- Event Ledger ordering, reducers, snapshots and projections;
+- canonical vs ephemeral state;
+- SQLite/object-store persistence contracts;
+- failure and recovery semantics;
+- concurrency ownership, bounded queues and backpressure;
+- runtime daemon ↔ TUI protocol and history virtualization;
+- World/action/effect contracts;
+- capability/intent policy model;
+- Cognitive MMU pages/working-set/recall semantics;
+- recursive-agent budget and cancellation semantics;
+- transaction/fork state machines;
+- testing, soak and benchmark gates.
+
+## A0 outputs already established
+
+- `ARCHITECTURE_GATE.md`;
+- `CONCEPT_CONTRACTS.md` covering all current core concepts;
+- `RELIABILITY_AND_PERFORMANCE.md`;
+- `TUI_AND_STREAMING.md`;
+- `CONCURRENCY_AND_BACKPRESSURE.md`;
+- `STATE_PERSISTENCE_AND_STORAGE.md`;
+- `FAILURE_MODEL_AND_RECOVERY.md`;
+- `TESTING_BENCHMARKS_AND_QUALITY_GATES.md`;
+- `ARCHITECTURE_DECISIONS.md`.
+
+## A0 completion criteria
+
+Before G0:
+
+- every G0/G1 primitive has explicit canonical state;
+- Agent Process lifecycle/state transition table is frozen enough to implement;
+- event ordering/version semantics are decided;
+- snapshot/event compatibility strategy exists;
+- storage failure behavior is specified;
+- daemon/TUI ownership boundary is fixed;
+- no unbounded hot-path queues are allowed;
+- long-session performance tests are defined;
+- initial architecture decisions required by G0/G1 are accepted;
+- implementation tasks can be written without deciding core semantics in code review.
+
+The architecture gate does **not** require late-stage algorithms such as learned scheduling or full Truth Maintenance to be solved before G0. Their extension boundaries and invariants must simply be protected.
 
 ---
 
@@ -14,40 +77,38 @@ The working product name remains **TBD**.
 
 ## Goal
 
-Create a tiny Go codebase with strong boundaries before implementing agent behavior.
+Create a tiny Go codebase implementing the architecture's foundational boundaries without agent behavior.
 
 ## Deliverables
 
 - Go module and repository layout;
-- CLI entry point;
+- CLI/runtime entry points;
 - structured logging;
 - typed IDs/errors;
 - configuration loading;
-- SQLite storage abstraction;
+- SQLite storage implementation;
+- object-store implementation;
 - migration mechanism;
-- clock/UUID abstractions where useful for deterministic tests;
-- basic unit/integration test setup;
+- deterministic clock/ID test abstractions where useful;
+- basic unit/integration/fault test setup;
+- profiler/runtime metrics hooks;
 - architecture package boundaries.
 
-## Suggested initial dependencies
+## Key constraints
 
-Keep dependencies minimal.
-
-Possible choices to evaluate rather than blindly adopt:
-
-- CLI: standard `flag` first, Cobra only if commands become complex;
-- SQLite: `modernc.org/sqlite` for pure Go or `mattn/go-sqlite3` if CGO is acceptable;
-- migrations: lightweight embedded SQL migrations;
-- logging: `log/slog`;
-- IDs: standard/random UUID implementation or a small dependency;
-- terminal UI later: Bubble Tea/Lip Gloss if the TUI justifies it.
+- no TUI-owned canonical state;
+- no unbounded queues;
+- large object APIs stream via `io.Reader`/`io.Writer`;
+- storage health failures have explicit behavior;
+- standard library preferred where adequate.
 
 ## Completion criteria
 
-- `go test ./...` passes;
-- executable starts with no provider configured;
-- DB can initialize/reopen safely;
-- no agent-specific product logic leaked into storage/CLI foundations.
+- `go test ./...` and race suite baseline pass;
+- executable/runtime can initialize/reopen DB safely;
+- object store can stream large objects with bounded memory;
+- database crash/reopen tests pass;
+- no agent-specific product behavior leaked into storage/CLI foundations.
 
 ---
 
@@ -65,18 +126,27 @@ Prove the central process model before calling any LLM.
 - parent/child relationship metadata;
 - lifecycle states;
 - root Intent object;
-- status transitions with validation.
+- versioned status transitions;
+- durable sleep/wait representation foundations.
 
 ### Event Ledger
 
-- append-only events;
+- append-only meaningful events;
 - causation/correlation IDs;
+- explicit sequence/version model;
 - process event stream;
-- state reducer;
-- periodic snapshot format;
-- reconstruct process from snapshot + events.
+- pure deterministic reducer;
+- periodic/versioned snapshot format;
+- reconstruct process from snapshot + tail events;
+- current process projection.
 
-### CLI
+### Runtime supervision foundation
+
+- activation of runnable durable processes;
+- canonical state independent from goroutine lifetime;
+- clean shutdown/recovery skeleton.
+
+### CLI inspection
 
 ```text
 go-agent process create
@@ -86,15 +156,15 @@ go-agent process resume <id>
 go-agent events <id>
 ```
 
-## Killer test
+## Killer tests
 
 1. create process;
 2. append state changes;
-3. terminate executable;
+3. hard-kill executable;
 4. restart;
-5. reconstruct exact logical state.
-
-No in-memory singleton may be required for correctness.
+5. reconstruct exact logical state/version/lineage;
+6. verify no in-memory singleton was required;
+7. create thousands of waiting processes without one permanent goroutine each.
 
 ---
 
@@ -111,9 +181,10 @@ Run the smallest useful intelligent process through kernel boundaries.
 - provider-independent request/event types;
 - streaming;
 - cancellation;
-- token/cost usage accounting when provider exposes it;
+- token/cost usage accounting when available;
 - one frontier provider adapter;
-- one OpenAI-compatible adapter for local/vLLM/Ollama-style endpoints.
+- one OpenAI-compatible adapter for local/vLLM/Ollama-style endpoints;
+- deterministic fake provider for tests.
 
 ### Initial syscalls
 
@@ -131,15 +202,20 @@ checkpoint
 - list directory;
 - run command with timeout/output limits.
 
-Every call must produce ledger events.
+### Streaming architecture
 
-### Session/TUI
+- model tokens use bounded/coalesced live stream;
+- final response persisted as object/artifact;
+- canonical events record invocation lifecycle, not one event per token;
+- command output streams to object store with bounded preview tail.
 
-A basic interactive CLI is enough. Do not build the final TUI yet.
+### UI
+
+A basic attachable client/CLI is enough. Do not build the final TUI yet.
 
 ## Completion criteria
 
-The agent can inspect a small repository, run a command and answer a question while every action is attributable in the ledger.
+The agent can inspect a small repository, run a command and answer while every meaningful action is attributable in the ledger and large output cannot grow hot memory without bound.
 
 ---
 
@@ -147,32 +223,28 @@ The agent can inspect a small repository, run a command and answer a question wh
 
 ## Goal
 
-Make tool execution structurally controlled.
+Make execution structurally controlled.
 
 ## Deliverables
 
 ### World API
 
-Implement:
-
 - `LocalWorld`;
+- action/result protocol;
 - process execution abstraction;
 - filesystem abstraction;
-- world lifecycle.
-
-Design interfaces so OCI can follow without over-generalizing prematurely.
+- World lifecycle/capability descriptor;
+- streamed output/cancellation contract.
 
 ### Capability system
 
 - filesystem read/write scopes;
 - process execution scopes;
-- network policy placeholder;
+- network policy foundation;
 - delegation subset validation;
 - capability leases.
 
 ### Effect system
-
-Initial classes:
 
 ```text
 Pure
@@ -182,7 +254,7 @@ Compensatable
 Irreversible
 ```
 
-Actions declare effect metadata.
+plus traits such as idempotency/retryability where required.
 
 ### Intent Lock
 
@@ -194,10 +266,11 @@ Actions declare effect metadata.
 ## Killer tests
 
 - child cannot acquire missing parent capability;
-- read-only agent cannot write even if the LLM requests it;
+- read-only agent cannot write even if LLM requests it;
 - expired lease fails deterministically;
-- denied action never reaches World implementation;
-- every decision is visible in the ledger.
+- denied action never reaches World;
+- prompt/tool content cannot mint authority;
+- every security decision is causally visible.
 
 ---
 
@@ -211,38 +284,42 @@ Stop treating conversation history as canonical memory.
 
 ### Context Page
 
-- page identity/type/source;
+- page identity/type/source/scope;
 - token estimate;
 - importance/relevance metadata;
 - persistence;
-- blob-backed large content.
+- object-backed large content.
 
 ### Working-set builder
 
 Pack bounded context from:
 
 - intent;
-- task state;
+- current task state;
 - pinned pages;
-- recent events;
-- retrieved pages;
-- tool schemas.
+- recent causal events;
+- explicitly retrieved pages;
+- tool/syscall schemas;
+- reserved output budget.
 
 ### `recall()` syscall
 
-Explicit query over context/memory store.
+Explicit retrieval before automatic Context Faults.
 
 ### Context trace
 
-Every model call records which pages were included and why.
+Every model call records page selection/reason/budget.
 
 ### Basic eviction
 
 Remove low-value pages from active context without deleting durable state.
 
-## Killer test
+## Killer tests
 
-Run a task whose accumulated history is larger than the model context and demonstrate that useful work continues using bounded context plus recall.
+- accumulated history larger than model context still allows useful work;
+- hard token budget is never exceeded;
+- old relevant fact can be explicitly recalled;
+- hot memory/context remains bounded as synthetic history grows.
 
 ---
 
@@ -250,7 +327,7 @@ Run a task whose accumulated history is larger than the model context and demons
 
 ## Goal
 
-Bring the Prime-style recursive-agent benefit into the kernel process model.
+Bring recursive-agent benefits into the durable process/security/economy model.
 
 ## Deliverables
 
@@ -258,13 +335,13 @@ Bring the Prime-style recursive-agent benefit into the kernel process model.
 
 Child contract includes:
 
-- task;
+- task/child intent;
 - authority subset;
-- budget;
+- budget reservation;
 - deadline;
 - model policy;
-- world policy;
-- result contract.
+- World policy;
+- result/evidence contract.
 
 ### Messaging
 
@@ -276,21 +353,22 @@ Child contract includes:
 
 ### Supervisor
 
-- concurrent children with goroutines;
+- bounded concurrent children;
 - durable child states;
 - restart-safe waiting;
-- cancellation tree.
+- cancellation tree;
+- fairness across roots.
 
 ### Budget hierarchy
 
 - token/cost reservation;
 - max children;
 - max parallelism;
-- release unused reservations.
+- release unused reservation exactly once.
 
 ## Killer test
 
-A root agent delegates three repository investigations in parallel, receives structured evidence and survives a runtime restart while one child is still pending.
+Root delegates three repository investigations in parallel, survives daemon restart with a child pending, and receives structured evidence without importing whole child transcripts.
 
 ---
 
@@ -302,30 +380,30 @@ Stop binding an Agent Process to one model.
 
 ## Deliverables
 
-- model registry;
-- model capabilities metadata;
+- model registry/capabilities;
 - cost/latency estimates;
 - rule-based task routing;
-- fallback on provider failure;
+- provider health/circuit behavior;
+- fallback policy;
 - privacy/locality constraints;
-- per-task model override;
-- routing events and metrics.
+- per-task override;
+- routing events/metrics.
 
-## First routing policy
+## Initial policy
 
-Simple deterministic rules are preferable to premature ML:
+Deterministic rules first:
 
 ```text
 cheap extraction → small/cheap model
-large-context synthesis → suitable context model
+large-context synthesis → context-capable model
 high-risk architecture → strong reasoning model
-provider unavailable → fallback
+provider unhealthy → eligible fallback
 private/local-only → local compatible model
 ```
 
-## Later
+## Evaluation
 
-Learn routing from task outcomes once enough telemetry exists.
+Compare against always-default/always-strongest/always-cheapest baselines on cost-quality-latency.
 
 ---
 
@@ -333,7 +411,7 @@ Learn routing from task outcomes once enough telemetry exists.
 
 ## Goal
 
-Make speculative work safe and reversible.
+Make speculative work isolated and reversible where semantics allow.
 
 ## Deliverables
 
@@ -342,8 +420,9 @@ Make speculative work safe and reversible.
 - isolated workspace mount;
 - restricted network mode;
 - CPU/memory/time limits;
-- controlled environment variables;
-- secret binding without prompt exposure.
+- controlled environment;
+- secret binding without prompt exposure;
+- snapshot/fork capability description.
 
 ### Transaction API
 
@@ -351,19 +430,21 @@ Make speculative work safe and reversible.
 begin
 execute
 verify
-commit / rollback
+commit / rollback / reconcile
 ```
 
 ### Verification contract
 
-- command/test checks;
-- policy checks;
-- optional model evaluator;
-- acceptance criteria mapping.
+- commands/tests;
+- policies;
+- acceptance criteria mapping;
+- optional model evaluator only when objective checks are insufficient.
 
-## Killer test
+## Killer tests
 
-Agent makes a multi-file breaking change, verification fails, rollback restores the original observable workspace exactly.
+- multi-file breaking change fails verification and rollback restores defined observable state;
+- runtime killed at multiple transaction boundaries recovers correct explicit state;
+- irreversible effect cannot be falsely rolled back.
 
 ---
 
@@ -378,16 +459,16 @@ Explore alternative futures in parallel.
 - named checkpoint;
 - fork Agent Process state;
 - fork World state;
-- fork memory overlay;
-- allocate independent branch budgets;
-- run branches concurrently;
-- evaluator compares artifacts/results;
-- promote winning branch;
-- discard/retain losing branch history.
+- branch-local memory/context overlay;
+- independent budget reservations;
+- concurrent branches;
+- evaluator compares objective results/artifacts;
+- promote winner;
+- clean/discard/retain loser according to policy.
 
 ## Killer demonstration
 
-Ask the agent to implement two solutions to the same performance problem, benchmark both in isolated forks, explain the comparison and commit only the winning solution.
+Implement two solutions to a performance problem, benchmark both in isolated forks, explain comparison and promote only winner with no mutation leakage.
 
 ---
 
@@ -395,18 +476,17 @@ Ask the agent to implement two solutions to the same performance problem, benchm
 
 ## Goal
 
-Replace flat memory snippets with evidence-aware beliefs.
+Replace flat snippets with evidence-aware beliefs.
 
 ## Deliverables
 
 - belief store;
 - scope;
 - provenance;
-- confidence;
-- freshness;
+- confidence metadata;
+- freshness/status lifecycle;
 - contradiction edges;
 - dependency graph;
-- status lifecycle;
 - retrieval integrated with Cognitive MMU.
 
 ## Causal invalidation v1
@@ -414,12 +494,12 @@ Replace flat memory snippets with evidence-aware beliefs.
 When source evidence changes:
 
 - mark directly derived beliefs stale;
-- propagate `needs_review` through dependency edges;
-- schedule verification when policy warrants it.
+- propagate `needs_review` through dependency graph;
+- schedule/recommend verification according to policy.
 
 ## Killer test
 
-An agent learns a repository architecture fact, the source changes, and the old belief is automatically downgraded rather than silently reused.
+Agent learns repository architecture fact; source changes; old belief is downgraded and cannot silently rank as trusted while original evidence/history remains inspectable.
 
 ---
 
@@ -427,21 +507,21 @@ An agent learns a repository architecture fact, the source changes, and the old 
 
 ## Goal
 
-Make retrieval feel like a runtime primitive rather than a chat search command.
+Make retrieval a runtime primitive rather than only a manual search command.
 
 ## Deliverables
 
 - symbolic context references;
 - dependency-driven page loading;
-- context-fault events;
-- loop protection;
+- Context Fault events;
+- fault-loop/thrashing protection;
 - smarter working-set planning;
 - structured compaction;
 - summary ↔ raw evidence links.
 
 ## Research requirement
 
-Keep automatic faults observable and debuggable. Never create hidden retrieval behavior that makes model decisions impossible to reproduce.
+Automatic faults remain observable/reproducible and cannot trigger hidden unbounded loops.
 
 ---
 
@@ -454,15 +534,15 @@ Move beyond static multi-agent graphs.
 ## Deliverables
 
 - team proposal/decomposition format;
-- scheduler approval against budget;
+- scheduler approval against budgets;
 - temporary specialist profiles;
-- structured challenge/evidence protocol;
-- disagreement deadlines;
+- structured claim/challenge/evidence/revision protocol;
+- disagreement round/deadline limits;
 - escalation to parent/evaluator/user.
 
 ## Killer demonstration
 
-A reviewer finds a race condition, the implementer disputes it, the reviewer produces a reproducer, and both converge on a corrected implementation without root-agent micromanagement.
+Reviewer finds race condition, implementer disputes it, reviewer supplies reproducer and they converge—or escalate deterministically—without unlimited dialogue.
 
 ---
 
@@ -470,7 +550,7 @@ A reviewer finds a race condition, the implementer disputes it, the reviewer pro
 
 ## Goal
 
-Allow the system to improve without uncontrolled self-modification.
+Allow system improvement without uncontrolled self-modification.
 
 ## Deliverables
 
@@ -484,24 +564,18 @@ routing policies
 context policies
 ```
 
-Candidate lifecycle:
+Lifecycle:
 
 ```text
-propose → evaluate → compare baseline → promote/reject → rollback
+hypothesis → candidate → evaluate → compare baseline → promote/reject → rollback
 ```
 
-Track:
+## Hard invariants
 
-- origin;
-- hypothesis;
-- evaluation count;
-- quality metrics;
-- regression metrics;
-- version lineage.
-
-## Hard invariant
-
-Self-improvement cannot expand capabilities or rewrite immutable root security/user policy.
+- self-improvement cannot expand capabilities;
+- cannot rewrite immutable root security/user policy;
+- historical invocations remain attributable to exact artifact versions;
+- security regression rejects candidate even if task score improves.
 
 ---
 
@@ -509,7 +583,7 @@ Self-improvement cannot expand capabilities or rewrite immutable root security/u
 
 ## Goal
 
-Run the same Agent Process abstraction across local and remote compute.
+Run same durable Agent Process abstraction across local and remote compute.
 
 ## Candidates
 
@@ -518,9 +592,9 @@ Run the same Agent Process abstraction across local and remote compute.
 - Kubernetes jobs/workspaces;
 - GPU/local inference node routing;
 - distributed object/blob storage;
-- leases/heartbeats for active workers.
+- worker leases/heartbeats/reconciliation.
 
-The durable process remains independent from worker location.
+Agent identity remains independent from worker location.
 
 ---
 
@@ -528,93 +602,103 @@ The durable process remains independent from worker location.
 
 ## Goal
 
-Make complex agent behavior understandable.
+Make complex agent behavior understandable and replayable.
 
 ## Deliverables
 
 - process tree UI;
-- causal event graph;
-- context-page inspector;
+- causal graph;
+- context inspector;
 - authority/effect inspector;
-- cost/token timeline;
-- world diff viewer;
+- resource/cost timeline;
+- World diff viewer;
 - historical checkpoint replay;
 - fork from past event;
 - OpenTelemetry export.
 
-A user should be able to answer:
+The user should be able to answer:
 
-> “Why did agent A make change X, based on what evidence, under which authority, and what would happen if I replayed from before that choice?”
+> “Why did agent A make change X, based on what evidence, under which authority, and what happens if I fork from before that choice?”
 
 ---
 
-# Suggested first product slice
+# Cross-generation reliability requirements
 
-Do not wait until G14 to have something usable.
-
-A credible first coding-agent product can emerge around **G5**:
+Every generation inherits these requirements:
 
 ```text
-single Go binary
-persistent sessions
+bounded hot memory
+bounded queues
+streamed large I/O
+explicit cancellation/deadlines
+crash-safe canonical state
+fault injection
+race/leak tests
+inspectable causality
+no prompt-only security
+```
+
+A feature is not “done” if its happy path works but it leaks memory/goroutines or has undefined crash behavior.
+
+---
+
+# Product slices
+
+A credible first coding-agent experience may emerge around G5:
+
+```text
+single Go binary distribution
+local durable daemon
+attachable terminal
+persistent Agent Processes
 model streaming
 filesystem/shell/git actions
 Event Ledger
-basic capabilities
+capabilities/effects
 bounded context
 recursive subagents
 ```
 
-But the project should resist polishing that CLI so heavily that it prevents development of G7–G10, where the strongest differentiation begins.
+But visual polish must not compromise progression toward G7–G10, where the strongest differentiation begins.
 
 ---
 
 # Testing philosophy
 
-Each kernel concept should have invariant tests.
+Most kernel semantics must be testable without an LLM.
 
-Examples:
+Use deterministic fake providers and fake Worlds to test:
 
-```text
-process recovery is deterministic
-child authority ⊆ parent authority
-denied effect cannot reach a World
-transaction rollback restores observable state
-forks cannot mutate sibling worlds
-budget cannot be oversubscribed
-invalidated belief cannot rank as fully trusted
-context builder never exceeds hard token budget
-```
+- process recovery;
+- authority subset;
+- denied effects;
+- transaction rollback;
+- fork isolation;
+- budget accounting;
+- context budget;
+- unknown outcomes;
+- slow consumers;
+- crash recovery.
 
-Use real model integration tests sparingly; most kernel semantics should be testable without an LLM.
-
----
-
-# Benchmark/evaluation suite
-
-As the system matures, maintain scenarios for:
-
-- long-context repository exploration;
-- multi-hour task recovery;
-- provider failure mid-task;
-- recursive-agent cost control;
-- prompt-injection attempts;
-- stale-memory invalidation;
-- speculative implementation comparison;
-- rollback correctness;
-- model-router quality/cost tradeoff;
-- continual-improvement regression detection.
-
-This suite can become one of the project’s major assets.
+Real-model tests evaluate harness/model quality separately.
 
 ---
 
 # Immediate next step
 
-Implement **G0 + G1 only** before adding provider integrations.
+**Do not implement G0 yet. Continue A0.**
 
-The most valuable first proof is not “the LLM can call `ls`”. Existing agents already prove that.
+The next concrete architecture tasks are:
 
-The first proof unique to this architecture is:
+1. exact Agent Process state-transition table;
+2. event catalog + ordering/version semantics;
+3. syscall request/outcome protocol;
+4. storage schema/projection boundaries for G1;
+5. daemon ↔ TUI IPC/projection contract;
+6. World action + Effect descriptor contract;
+7. capability grammar/subset semantics;
+8. Cognitive MMU v0 packing/recall algorithm;
+9. transaction/fork state machines;
+10. benchmark acceptance rules and initial ADR closure.
 
-> **An Agent Process is a real durable runtime object whose state can be reconstructed, inspected and governed independently from a model conversation.**
+When these high-coupling contracts are stable, G0/G1 can begin without architectural guesswork.
