@@ -8,20 +8,13 @@ The goal is not to build “another coding-agent CLI”, nor to port Prime Agent
 
 ## Current phase
 
-**A0 — Architecture & Semantics. No runtime development yet.**
+**A0 — Architecture & Semantics: COMPLETE. G0 has not started.**
 
-Before implementing G0, every important primitive must be architected in terms of:
+The architecture gate has passed: the high-coupling runtime primitives now have explicit semantics, invariants, state/failure models, security boundaries, long-session resource rules and validation plans.
 
-- problem and rationale;
-- semantics/state machine;
-- canonical vs ephemeral state;
-- invariants;
-- concurrency ownership and backpressure;
-- failure/recovery behavior;
-- authority/effects;
-- performance/resource bounds;
-- observability;
-- tests and benchmarks.
+See [A0 Exit Review](docs/A0_EXIT_REVIEW.md).
+
+The next phase is **G0 — Foundations**, but no runtime code should be written until G0 is explicitly started.
 
 The runtime is explicitly designed for **long-lived stability**: agent history may grow for hours or days, but hot memory, active LLM context and terminal rendering work must remain bounded.
 
@@ -65,7 +58,7 @@ Applications / Harnesses
                │
         Execution Worlds
                │
-   Local / Docker / SSH / K8s
+   Local / OCI / SSH / K8s
    Browser / Python / MCP / …
 ```
 
@@ -86,18 +79,20 @@ Closing or crashing the TUI must not kill an active agent.
 
 ## Why Go?
 
-Go is deliberately chosen for the runtime/kernel layer:
+Go is the accepted kernel/runtime language.
+
+It is deliberately chosen for:
 
 - excellent concurrency primitives (`goroutine`, `channel`, `context.Context`);
 - strong networking/process tooling;
 - simple deployment as a single binary;
 - fast compilation and iteration;
 - low operational overhead;
-- good fit for daemons, schedulers, orchestration and distributed systems;
-- enough performance for an agent runtime, where network/model latency dominates;
-- official or mature integrations exist for modern model APIs and MCP-style tooling.
+- strong fit for daemons, schedulers, orchestration and distributed systems;
+- sufficient performance for an agent runtime where model/network latency dominates;
+- a good ecosystem for HTTP, SQLite, MCP and local tooling.
 
-Python remains useful as an **execution world** when a persistent REPL, notebooks or scientific/data tooling are needed. It does not need to be the kernel language.
+Python remains useful as an **Execution World** when a persistent REPL, notebooks or scientific/data tooling are needed. It does not need to be the kernel language.
 
 ## Core principles
 
@@ -105,47 +100,54 @@ Python remains useful as an **execution world** when a persistent REPL, notebook
 2. **Agent state must survive process death and context compaction.**
 3. **Authority is explicit, scoped, delegable and revocable.**
 4. **Actions have typed effects.** The runtime must know what can be reversed, compensated or must require approval.
-5. **Potentially dangerous work happens in isolated worlds.**
-6. **Speculation is a first-class primitive.** Fork alternatives, verify them, then commit the best one.
-7. **Memory stores beliefs with provenance, confidence and invalidation — not just text snippets.**
+5. **Potentially dangerous work happens in Worlds whose guarantees are explicit.**
+6. **Speculation is a first-class primitive.** Fork alternatives, verify them, then promote/commit the best one.
+7. **Memory stores evidence-aware beliefs with provenance, freshness and invalidation — not just text snippets.**
 8. **Subagents are processes with budgets and capabilities, not just prompts.**
-9. **Models are schedulable compute resources.** Pick the cheapest/fastest model able to solve a given task.
+9. **Models are schedulable compute resources.** Model identity is not Agent identity.
 10. **Self-improvement must be evaluated, versioned and reversible.**
 11. **The runtime should remain useful beyond coding agents.**
-12. **The product name and UX are intentionally deferred until the execution model is solid.**
+12. **The product name and final UX are intentionally deferred until the runtime is real.**
 13. **Hot state is bounded.** History can grow; RAM/context/TUI work must not scale linearly with lifetime history.
 14. **Backpressure is explicit.** No hidden unbounded queue is allowed in runtime hot paths.
 15. **Unknown is a real state.** Partial external failures are never rewritten as false success/failure certainty.
 16. **Presentation is disposable.** The terminal is a client, never the owner of canonical agent state.
+17. **Restore never rewrites history.** Execution edits create new timelines and preserve already-observed effects.
+18. **Evidence survives consolidation.** Memory transformations cannot launder provenance.
+19. **Intent and capability are separate authorization dimensions.**
+20. **Implementation follows contracts.** High-coupling semantic changes after A0 require explicit architecture updates.
 
-## Primary innovations under exploration
+## Primary innovations
 
-The project currently focuses on these proposed primitives:
+The architecture currently defines these primitives:
 
 - **Agent Process** — durable, resumable intelligent process.
-- **Agent Syscalls** — stable low-level interface such as `observe`, `recall`, `spawn`, `delegate`, `execute`, `checkpoint`, `fork`, `commit`, `signal`, `sleep`.
-- **Cognitive MMU / Context Virtualization** — context pages, working sets, page-in/page-out, pinning and context faults.
-- **Context Fault** — runtime-mediated retrieval when required knowledge is outside the current LLM context.
-- **Epistemic Memory** — beliefs + provenance + confidence + dependencies + contradiction/invalidation tracking.
-- **Execution World** — isolated environment in which an agent can act (local, container, SSH, browser, Python, Kubernetes…).
-- **Agent Fork / Cognitive Fork** — clone cognitive + environmental state to explore alternatives in parallel.
-- **Agent Transaction** — speculative actions followed by verification and commit/rollback.
-- **Effect System** — classify actions as pure/read/reversible/compensatable/irreversible.
-- **Authority Tree / Capability Leasing** — children can only receive a subset of the parent’s authority, optionally with expiry.
-- **Intent Lock / Intent-Based Authority** — immutable user goal and allowed effects constrain downstream actions.
-- **Cognitive Scheduler** — route tasks across models/agents based on quality, cost, latency and prior success.
-- **Agent Economy** — explicit budgets for tokens, money, time, tools and parallelism.
-- **Adaptive Team Formation** — agents create temporary specialist teams based on the task.
-- **Agent Negotiation** — peers can exchange evidence, challenge assumptions and escalate unresolved disagreements.
-- **Verified Continual Improvement** — proposed skills/prompts/memories are evaluated before promotion.
+- **Agent Syscalls** — provider/tool-independent kernel execution vocabulary.
+- **Cognitive MMU / Context Virtualization** — bounded working set, semantic pages, page-in/out.
+- **Context Fault** — typed runtime-mediated retrieval when required knowledge is not hot.
+- **Epistemic Memory** — versioned evidence, beliefs, provenance, contradiction and Truth Maintenance.
+- **Execution World** — environment boundary with explicit isolation/snapshot/network/resource guarantees.
+- **Agent Fork / Cognitive Fork** — isolated alternative successor timelines.
+- **Agent Transaction** — stage, verify, promote/rollback/reconcile.
+- **Effect System** — pure/read/reversible/compensatable/irreversible semantics.
+- **Authority Tree / Capability Leasing** — monotonic delegated authority.
+- **Intent-Based Authority** — versioned Intent Envelope + Purpose-Carrying Actions + Action Proof.
+- **Cognitive Scheduler** — per-task model/resource scheduling based on hard constraints, quality, cost, latency and load.
+- **Agent Economy** — hierarchical reservations for tokens, money, time and concurrency.
+- **Adaptive Team Formation** — temporary bounded specialist organizations.
+- **Agent Negotiation** — finite evidence-oriented claim/challenge/escalation protocol.
+- **Verified Continual Improvement** — versioned hypothesis/evaluation/shadow/canary/promotion/rollback lifecycle.
+- **Safe Execution Editing** — checkpoint/fork/restore/merge semantics with causal frontier and uncertain-effect handling.
 
 ## Documentation
 
 ### Start here
 
-- [Architecture gate / pre-development A0 phase](docs/ARCHITECTURE_GATE.md)
-- [Master architecture contracts for all 25 concepts](docs/CONCEPT_CONTRACTS.md)
-- [Architecture decisions and open decisions](docs/ARCHITECTURE_DECISIONS.md)
+- [A0 Exit Review — architecture gate result](docs/A0_EXIT_REVIEW.md)
+- [Architecture gate](docs/ARCHITECTURE_GATE.md)
+- [Architecture decisions](docs/ARCHITECTURE_DECISIONS.md)
+- [Foundation technical decisions for G0](docs/FOUNDATION_TECHNICAL_DECISIONS.md)
+- [Master architecture contracts for all concepts](docs/CONCEPT_CONTRACTS.md)
 - [Vision and product thesis](docs/VISION.md)
 - [Product and runtime requirements](docs/REQUIREMENTS.md)
 
@@ -158,8 +160,22 @@ The project currently focuses on these proposed primitives:
 - [Concurrency, supervision and backpressure](docs/CONCURRENCY_AND_BACKPRESSURE.md)
 - [Failure model and recovery semantics](docs/FAILURE_MODEL_AND_RECOVERY.md)
 - [World action and Effect protocol](docs/WORLD_ACTION_AND_EFFECT_PROTOCOL.md)
+- [Execution Worlds and platform contract](docs/EXECUTION_WORLDS_PLATFORM_CONTRACT.md)
 - [Capability, delegation and Intent model](docs/CAPABILITY_AND_INTENT_MODEL.md)
+- [Intent-Based Authority engine](docs/INTENT_BASED_AUTHORITY_ENGINE.md)
 - [Agent Transactions and Cognitive Forks](docs/TRANSACTIONS_AND_COGNITIVE_FORKS.md)
+- [Execution edit safety](docs/EXECUTION_EDIT_SAFETY.md)
+- [Recursive orchestration protocol](docs/RECURSIVE_ORCHESTRATION_PROTOCOL.md)
+
+### Cognitive architecture
+
+- [Cognitive runtime, context and memory](docs/COGNITIVE_RUNTIME.md)
+- [Cognitive MMU v0 algorithm](docs/COGNITIVE_MMU_V0_ALGORITHM.md)
+- [Context Faults and cognitive paging](docs/CONTEXT_FAULTS_AND_COGNITIVE_PAGING.md)
+- [Epistemic Memory and Truth Maintenance](docs/EPISTEMIC_MEMORY_AND_TRUTH_MAINTENANCE.md)
+- [Cognitive Scheduler architecture](docs/COGNITIVE_SCHEDULER_ARCHITECTURE.md)
+- [Orchestration, subagents and model scheduling overview](docs/ORCHESTRATION.md)
+- [Verified Continual Improvement](docs/VERIFIED_CONTINUAL_IMPROVEMENT.md)
 
 ### Long-session UI/performance
 
@@ -167,13 +183,6 @@ The project currently focuses on these proposed primitives:
 - [TUI, streaming, attach/detach and history virtualization](docs/TUI_AND_STREAMING.md)
 - [Local runtime control / IPC protocol](docs/LOCAL_CONTROL_PROTOCOL.md)
 - [Testing, benchmarks and quality gates](docs/TESTING_BENCHMARKS_AND_QUALITY_GATES.md)
-
-### Cognitive/security/orchestration architecture
-
-- [Cognitive runtime, context and memory](docs/COGNITIVE_RUNTIME.md)
-- [Cognitive MMU v0 algorithm](docs/COGNITIVE_MMU_V0_ALGORITHM.md)
-- [Security, authority, intents and effects](docs/SECURITY_AND_EFFECTS.md)
-- [Orchestration, subagents and model scheduling](docs/ORCHESTRATION.md)
 
 ### Research and roadmap
 
@@ -185,7 +194,7 @@ The project currently focuses on these proposed primitives:
 
 A session should be able to run for hours/days without becoming progressively heavier simply because it is old.
 
-The architecture therefore requires:
+The architecture requires:
 
 ```text
 bounded LLM working context
@@ -202,6 +211,25 @@ explicit concurrency/resource budgets
 
 The anti-regression suite is designed around 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic 100k-message histories.
 
+## G0 foundation baseline
+
+A0 has also fixed the initial implementation defaults:
+
+```text
+Go kernel
+modernc.org/sqlite behind adapter (provisional/benchmarked)
+database/sql + explicit SQL
+SQLite WAL + reliability-first synchronous mode
+versioned JSON event payloads
+versioned rebuildable JSON snapshots
+SHA-256 content-addressed Object Store
+Unix domain socket / Windows named pipe local IPC
+length-framed versioned JSON control messages
+SQLite FTS lexical retrieval baseline
+```
+
+These are implementation defaults, not excuses to weaken architecture invariants if benchmarks expose a problem.
+
 ## Scope
 
 ### In scope
@@ -212,7 +240,7 @@ The anti-regression suite is designed around 1h/8h/24h soak tests, daemon kill/r
 - model/provider abstraction;
 - shell/filesystem/git/process tooling;
 - MCP and external-tool integration;
-- isolated execution worlds;
+- isolated execution Worlds;
 - durable event/state model;
 - context virtualization and structured memory;
 - capability/security model;
@@ -231,9 +259,9 @@ The anti-regression suite is designed around 1h/8h/24h soak tests, daemon kill/r
 
 ## Status
 
-**A0 — architecture / semantics / research phase.**
+**A0 complete. G0 not started.**
 
-The repository is intentionally staying out of implementation until the high-coupling runtime contracts are strong enough that G0/G1 can be coded without inventing fundamental semantics on the fly.
+A0 has produced the semantic contracts. G0's responsibility will be to implement foundations and validate empirical adapter choices without reinventing the runtime model.
 
 ## Naming
 
