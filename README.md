@@ -144,6 +144,7 @@ The architecture currently defines these primitives:
 ### Start here
 
 - [A0 Exit Review — architecture gate result](docs/A0_EXIT_REVIEW.md)
+- [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
 - [Canonical concept status registry](docs/CONCEPT_STATUS.md)
 - [Architecture gate](docs/ARCHITECTURE_GATE.md)
 - [Architecture decisions](docs/ARCHITECTURE_DECISIONS.md)
