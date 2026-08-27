@@ -10,7 +10,7 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is ready.**
 
 See:
 
@@ -157,7 +157,7 @@ See `G0_EXIT_REVIEW.md`.
 
 ---
 
-# G1 — Durable Agent Process + Event Ledger ✅ READY
+# G1 — Durable Agent Process + Event Ledger ✅ COMPLETE
 
 ## Goal
 
@@ -210,9 +210,36 @@ go-agent events <id>
 6. verify no in-memory singleton was required;
 7. create thousands of waiting processes without one permanent goroutine each.
 
+## G1 result
+
+**PASS.**
+
+Validated on August 27, 2026 with:
+
+- exact state/version/lineage reconstruction after hard kill;
+- deterministic full replay and snapshot + tail reconstruction;
+- durable request-id idempotency;
+- optimistic process-version CAS and atomic ledger/projection/receipt commits;
+- stale wake rejection and durable RUNNING recovery;
+- parent/child lineage + causal references;
+- 10,000 waiting/sleeping-process supervision without one permanent goroutine per process;
+- reducer/event hot paths at zero allocations in benchmarks;
+- cross-platform daemon/client support including Windows named-pipe dialing.
+
+GitHub Actions run `33074043420` passed:
+
+```text
+test (ubuntu-latest)  ✅
+test (macos-latest)   ✅
+test (windows-latest) ✅
+race                   ✅
+```
+
+The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-agent`; the race job passed `go test -race ./...`.
+
 ---
 
-# G2 — Minimal Agent Loop + Agent Syscalls
+# G2 — Minimal Agent Loop + Agent Syscalls ✅ READY
 
 ## Goal
 
@@ -683,15 +710,15 @@ Real-model tests evaluate harness/model quality separately.
 
 # Immediate next step
 
-**G1 — Durable Agent Process + Event Ledger is READY.**
+**G2 — Minimal Agent Loop + Agent Syscalls is READY.**
 
-Implement G1 according to:
+Implement G2 on top of the durable G1 process/ledger substrate with:
 
-- `AGENT_PROCESS_STATE_MACHINE.md`;
-- `EVENT_MODEL_AND_CATALOG.md`;
-- `STATE_PERSISTENCE_AND_STORAGE.md`;
-- `FAILURE_MODEL_AND_RECOVERY.md`;
-- `CONCURRENCY_AND_BACKPRESSURE.md`;
-- `ARCHITECTURE_DECISIONS.md`.
+- provider-independent invocation and streaming contracts;
+- deterministic fake provider first;
+- `observe`, `execute` and `checkpoint` Agent Syscalls;
+- bounded filesystem/command actions;
+- durable invocation/action lifecycle events;
+- streamed large outputs backed by the Object Store rather than unbounded hot memory.
 
-The first required proof is that an Agent Process can be created, transitioned, hard-killed with the daemon, and reconstructed exactly from durable history after restart without relying on an in-memory singleton or one permanent goroutine per waiting process.
+The first required proof is that one durable Agent Process can inspect a small repository, execute a bounded command and produce a final answer through the syscall/provider boundaries while every meaningful transition remains attributable and replayable in the Event Ledger.
