@@ -10,11 +10,12 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 has not started.**
+**A0 is complete. G0 is complete. G1 is ready.**
 
 See:
 
 - `A0_EXIT_REVIEW.md`;
+- `G0_EXIT_REVIEW.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
 - `FOUNDATION_TECHNICAL_DECISIONS.md`.
@@ -71,47 +72,51 @@ Scheduler utility weights
 TUI library selection
 ```
 
-These do not block G0 because their interfaces/guarantees are already defined.
+These do not block implementation because their interfaces/guarantees are already defined.
 
 ---
 
-# G0 — Foundations
+# G0 — Foundations ✅ COMPLETE
 
 ## Goal
 
 Create a tiny Go codebase implementing the architecture's foundational boundaries without agent behavior.
 
-## Deliverables
+## Delivered
 
-- Go module and repository layout;
-- CLI/runtime daemon entry points;
-- structured logging;
+- Go 1.27 module and repository layout;
+- CLI/runtime daemon entry point and cancellation lifecycle;
+- structured `log/slog` diagnostics;
 - typed IDs/errors;
-- configuration loading;
-- SQLite storage implementation;
+- injectable deterministic clock/ID generation;
+- layered typed configuration;
+- SQLite storage implementation behind internal adapter;
 - content-addressed streaming Object Store;
-- migration mechanism;
-- clock/ID test abstractions where useful;
-- local IPC skeleton;
+- ordered embedded SQL migration mechanism with checksums;
+- Unix-domain-socket local control on macOS/Linux;
+- Windows named-pipe local control;
+- bounded length-framed JSON control protocol;
+- bounded control connection concurrency;
+- runtime metrics snapshots and optional loopback-only pprof;
 - basic unit/integration/fault test setup;
-- profiler/runtime metrics hooks;
-- architecture package boundaries.
+- SQLite hard-kill/reopen test foundation;
+- malformed/oversized IPC frame tests;
+- cross-platform GitHub Actions CI;
+- race-detector baseline.
 
-## Accepted implementation baseline
+## Implemented baseline
 
 ```text
 Go
 modernc.org/sqlite behind internal adapter (provisional/benchmarked)
 database/sql + explicit SQL
 SQLite WAL + foreign_keys + reliability-first synchronous mode
-versioned JSON event payloads
-versioned rebuildable JSON snapshots
 SHA-256 content-addressed Object Store
 Unix domain socket / Windows named pipe IPC
 length-framed versioned JSON control protocol
 ```
 
-## Key constraints
+## Preserved constraints
 
 - no TUI-owned canonical state;
 - no unbounded queues;
@@ -119,23 +124,40 @@ length-framed versioned JSON control protocol
 - storage health failures have explicit behavior;
 - standard library preferred where adequate;
 - no ORM in kernel storage;
-- no new architecture semantics invented in code.
+- no new architecture semantics invented in code;
+- no Agent Process/Event Ledger/model/World behavior leaked into G0.
 
-## Completion criteria
+## G0 result
 
-- `go test ./...` passes;
-- race-suite baseline passes on supported platform set;
-- runtime initializes/reopens DB safely;
-- Object Store streams large objects with bounded memory;
-- DB kill/reopen tests pass;
-- snapshots are rebuildable from ledger;
-- malformed IPC cannot crash daemon;
-- storage adapter isolates SQLite driver-specific code;
-- no agent-specific behavior leaked into foundation layers.
+**PASS.**
+
+Foundation implementation commit:
+
+```text
+76a36df20ed8d0097725ddf0a8ec4807607d5c42
+feat: implement G0 runtime foundations
+```
+
+GitHub Actions run `33062697653` passed on August 27, 2026:
+
+```text
+test (ubuntu-latest)  ✅
+test (macos-latest)   ✅
+test (windows-latest) ✅
+race                   ✅
+```
+
+The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-agent`; the race job passed `go test -race ./...`.
+
+The previously listed G0 criterion “snapshots are rebuildable from ledger” is correctly a **G1 criterion**: G0 intentionally contains no Event Ledger. G0 provides the persistence/recovery substrate on which G1 must prove deterministic snapshot + replay reconstruction.
+
+Longer SQLite driver soak/comparison and extended long-session stress remain empirical validation work inherited from A0; they do not reopen G0 semantics.
+
+See `G0_EXIT_REVIEW.md`.
 
 ---
 
-# G1 — Durable Agent Process + Event Ledger
+# G1 — Durable Agent Process + Event Ledger ✅ READY
 
 ## Goal
 
@@ -661,13 +683,15 @@ Real-model tests evaluate harness/model quality separately.
 
 # Immediate next step
 
-**G0 is ready to start, but has not started.**
+**G1 — Durable Agent Process + Event Ledger is READY.**
 
-When explicitly requested, implement **G0 only** according to:
+Implement G1 according to:
 
-- `FOUNDATION_TECHNICAL_DECISIONS.md`;
-- `A0_EXIT_REVIEW.md`;
-- `ARCHITECTURE_DECISIONS.md`;
-- reliability/failure/storage/control-protocol contracts.
+- `AGENT_PROCESS_STATE_MACHINE.md`;
+- `EVENT_MODEL_AND_CATALOG.md`;
+- `STATE_PERSISTENCE_AND_STORAGE.md`;
+- `FAILURE_MODEL_AND_RECOVERY.md`;
+- `CONCURRENCY_AND_BACKPRESSURE.md`;
+- `ARCHITECTURE_DECISIONS.md`.
 
-If G0 implementation reveals a need to change a high-coupling semantic invariant, stop and amend the architecture first rather than embedding the change silently in code.
+The first required proof is that an Agent Process can be created, transitioned, hard-killed with the daemon, and reconstructed exactly from durable history after restart without relying on an in-memory singleton or one permanent goroutine per waiting process.

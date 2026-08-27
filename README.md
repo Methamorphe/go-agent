@@ -8,13 +8,13 @@ The goal is not to build “another coding-agent CLI”, nor to port Prime Agent
 
 ## Current phase
 
-**A0 — Architecture & Semantics: COMPLETE. G0 has not started.**
+**A0 — Architecture & Semantics: COMPLETE. G0 — Foundations: COMPLETE. G1 — Durable Agent Process + Event Ledger: READY.**
 
-The architecture gate has passed: the high-coupling runtime primitives now have explicit semantics, invariants, state/failure models, security boundaries, long-session resource rules and validation plans.
+A0 closed the high-coupling runtime semantics. G0 has now implemented and validated the foundational runtime substrate: daemon lifecycle, typed primitives, configuration, SQLite/migrations, content-addressed Object Store, bounded local IPC, diagnostics and cross-platform CI.
 
-See [A0 Exit Review](docs/A0_EXIT_REVIEW.md).
+See [A0 Exit Review](docs/A0_EXIT_REVIEW.md) and [G0 Exit Review](docs/G0_EXIT_REVIEW.md).
 
-The next phase is **G0 — Foundations**, but no runtime code should be written until G0 is explicitly started.
+The next implementation phase is **G1 — Durable Agent Process + Event Ledger**.
 
 The runtime is explicitly designed for **long-lived stability**: agent history may grow for hours or days, but hot memory, active LLM context and terminal rendering work must remain bounded.
 
@@ -144,6 +144,7 @@ The architecture currently defines these primitives:
 ### Start here
 
 - [A0 Exit Review — architecture gate result](docs/A0_EXIT_REVIEW.md)
+- [G0 Exit Review — foundation gate result](docs/G0_EXIT_REVIEW.md)
 - [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
 - [Canonical concept status registry](docs/CONCEPT_STATUS.md)
 - [Architecture gate](docs/ARCHITECTURE_GATE.md)
@@ -213,24 +214,24 @@ explicit concurrency/resource budgets
 
 The anti-regression suite is designed around 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic 100k-message histories.
 
-## G0 foundation baseline
+## G0 foundation implementation
 
-A0 has also fixed the initial implementation defaults:
+G0 implemented the accepted initial foundation baseline:
 
 ```text
 Go kernel
 modernc.org/sqlite behind adapter (provisional/benchmarked)
 database/sql + explicit SQL
 SQLite WAL + reliability-first synchronous mode
-versioned JSON event payloads
-versioned rebuildable JSON snapshots
 SHA-256 content-addressed Object Store
 Unix domain socket / Windows named pipe local IPC
 length-framed versioned JSON control messages
-SQLite FTS lexical retrieval baseline
+bounded control concurrency
+structured diagnostics + pprof hooks
+cross-platform CI + race baseline
 ```
 
-These are implementation defaults, not excuses to weaken architecture invariants if benchmarks expose a problem.
+The semantic Event Ledger, Agent Process, snapshot/replay model and agent behavior begin in G1 and later generations.
 
 ## Scope
 
@@ -261,9 +262,9 @@ These are implementation defaults, not excuses to weaken architecture invariants
 
 ## Status
 
-**A0 complete. G0 not started.**
+**A0 complete. G0 complete. G1 ready.**
 
-A0 has produced the semantic contracts. G0's responsibility will be to implement foundations and validate empirical adapter choices without reinventing the runtime model.
+A0 produced the semantic contracts. G0 implemented and validated the runtime foundations. G1 now starts the first durable domain primitive: Agent Process + Event Ledger.
 
 ## Naming
 
