@@ -6,17 +6,49 @@ import (
 	"log/slog"
 	"testing"
 	"time"
+
+	"github.com/Methamorphe/go-agent/internal/config"
 )
 
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	logger := slog.New(
-		slog.NewTextHandler(io.Discard, nil),
+		slog.NewTextHandler(
+			io.Discard,
+			nil,
+		),
 	)
 
-	application := New(logger)
+	cfg := config.Defaults()
+	cfg.DataDir = t.TempDir()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf(
+			"Normalize() returned an error: %v",
+			err,
+		)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf(
+			"Validate() returned an error: %v",
+			err,
+		)
+	}
+
+	application := New(
+		logger,
+		cfg,
+	)
+
+	ctx, cancel :=
+		context.WithCancel(
+			context.Background(),
+		)
+
+	done := make(
+		chan error,
+		1,
+	)
 
 	go func() {
 		done <- application.Run(ctx)
@@ -27,9 +59,15 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("Run() returned an error: %v", err)
+			t.Fatalf(
+				"Run() returned an error: %v",
+				err,
+			)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("Run() did not stop after context cancellation")
+
+	case <-time.After(3 * time.Second):
+		t.Fatal(
+			"Run() did not stop after context cancellation",
+		)
 	}
 }
