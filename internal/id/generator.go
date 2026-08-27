@@ -95,3 +95,66 @@ func (g *Generator) generate(prefix string) (string, error) {
 
 	return prefix + "_" + hex.EncodeToString(bytes[:]), nil
 }
+
+func (g *Generator) Request() (RequestID, error) {
+	value, err := g.generate("req")
+	if err != nil {
+		return "", err
+	}
+
+	return RequestID(value), nil
+}
+
+func (g *Generator) Intent() (IntentID, error) {
+	value, err := g.generate("int")
+	if err != nil {
+		return "", err
+	}
+
+	return IntentID(value), nil
+}
+
+func (g *Generator) Sleep() (SleepID, error) {
+	value, err := g.generate("slp")
+	if err != nil {
+		return "", err
+	}
+
+	return SleepID(value), nil
+}
+
+func (g *Generator) Lease() (LeaseID, error) {
+	value, err := g.generate("lse")
+	if err != nil {
+		return "", err
+	}
+
+	return LeaseID(value), nil
+}
+
+func (g *Generator) RuntimeInstance() (RuntimeInstanceID, error) {
+	value, err := g.generate("run")
+	if err != nil {
+		return "", err
+	}
+
+	return RuntimeInstanceID(value), nil
+}
+
+func (g *Generator) Snapshot() (SnapshotID, error) {
+	value, err := g.generate("snp")
+	if err != nil {
+		return "", err
+	}
+
+	return SnapshotID(value), nil
+}
+
+func (g *Generator) Checkpoint() (CheckpointID, error) {
+	value, err := g.generate("chk")
+	if err != nil {
+		return "", err
+	}
+
+	return CheckpointID(value), nil
+}
