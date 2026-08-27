@@ -34,7 +34,7 @@ jobs:
 
       - run: go vet ./...
 
-      - run: go build ./cmd/go-agent
+      - run: go build ./cmd/go-agent ./cmd/go-agentctl
 
   race:
     runs-on: ubuntu-latest

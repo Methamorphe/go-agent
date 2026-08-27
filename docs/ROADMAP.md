@@ -10,12 +10,13 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is ready.**
 
 See:
 
 - `A0_EXIT_REVIEW.md`;
 - `G0_EXIT_REVIEW.md`;
+- `G2_EXIT_REVIEW.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
 - `FOUNDATION_TECHNICAL_DECISIONS.md`.
@@ -239,7 +240,7 @@ The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-
 
 ---
 
-# G2 — Minimal Agent Loop + Agent Syscalls ✅ READY
+# G2 — Minimal Agent Loop + Agent Syscalls ✅ COMPLETE
 
 ## Goal
 
@@ -286,9 +287,48 @@ A basic attachable client/CLI is enough. Do not build final TUI yet.
 
 Agent can inspect a small repository, run a command and answer while every meaningful action is attributable in Ledger and large output cannot grow hot memory without bound.
 
+## G2 result
+
+**PASS.**
+
+Implemented on August 27, 2026 with:
+
+- provider-neutral messages, tool schemas, tool calls, usage and streaming events;
+- deterministic fake provider;
+- OpenAI Responses streaming adapter;
+- OpenAI-compatible streaming adapter for local endpoints;
+- durable `ModelInvocationStarted/Completed/Failed` lifecycle events;
+- `observe`, `execute` and `checkpoint` syscalls;
+- read-file/list-directory workspace actions;
+- argv-based command execution with cancellation, timeout, bounded preview and hard output quota;
+- streaming model/command bodies into the content-addressed Object Store;
+- bounded live presentation stream with gap-detectable offsets;
+- minimal model → syscall → model agent loop;
+- attachable `go-agentctl` run/attach client;
+- deterministic test proving observe → execute → final-answer flow;
+- explicit bounds on steps, tool calls, live bytes and G2 working context.
+
+Implementation commit:
+
+```text
+19f3fadcf0343cc53910dd52144bf3dc35d95bcb
+feat(g2): implement minimal agent loop and syscalls
+```
+
+GitHub Actions run `33083660845` passed:
+
+```text
+test (ubuntu-latest)  ✅
+test (macos-latest)   ✅
+test (windows-latest) ✅
+race                   ✅
+```
+
+See `G2_EXIT_REVIEW.md`.
+
 ---
 
-# G3 — Worlds + Authority + Effect System
+# G3 — Worlds + Authority + Effect System ✅ READY
 
 ## Goal
 
@@ -710,15 +750,16 @@ Real-model tests evaluate harness/model quality separately.
 
 # Immediate next step
 
-**G2 — Minimal Agent Loop + Agent Syscalls is READY.**
+**G3 — Worlds + Authority + Effect System is READY.**
 
-Implement G2 on top of the durable G1 process/ledger substrate with:
+Build the formal execution-security boundary on top of G2 with:
 
-- provider-independent invocation and streaming contracts;
-- deterministic fake provider first;
-- `observe`, `execute` and `checkpoint` Agent Syscalls;
-- bounded filesystem/command actions;
-- durable invocation/action lifecycle events;
-- streamed large outputs backed by the Object Store rather than unbounded hot memory.
+- `LocalWorld` and typed action/result protocol;
+- explicit World capability descriptors;
+- filesystem/process abstractions and process-tree cancellation;
+- capability grants/scopes/leases;
+- Effect classification and retry/certainty traits;
+- Intent-Based Authority checks and Action Proofs;
+- deterministic denial tests proving unauthorized model requests never reach the World.
 
-The first required proof is that one durable Agent Process can inspect a small repository, execute a bounded command and produce a final answer through the syscall/provider boundaries while every meaningful transition remains attributable and replayable in the Event Ledger.
+G3 must preserve the G2 provider/syscall/event streaming boundaries while moving execution from the deliberately narrow G2 dispatcher behind a formally authorized World boundary.
