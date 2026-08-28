@@ -7,7 +7,6 @@ import (
 	"errors"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Methamorphe/go-agent/internal/clock"
 	"github.com/Methamorphe/go-agent/internal/errs"
@@ -78,7 +77,7 @@ func (s *Service) Spawn(ctx context.Context, spec SpawnSpec) (SpawnOutcome, erro
 	if parent.Status.Terminal() { return SpawnOutcome{}, errs.New(errs.CodeConflict, "orchestration.spawn", "terminal parent cannot spawn") }
 	account, err := s.store.Account(ctx, spec.ParentAgentID)
 	if err != nil { return SpawnOutcome{}, err }
-	if !authoritySubset(spec.Authority, account.Authority) { return SpawnOutcome{}, errs.New(errs.CodePermissionDenied, "orchestration.spawn", "child authority is not a strict subset of parent authority") }
+	if !authoritySubset(spec.Authority, account.Authority) { return SpawnOutcome{}, errs.New(errs.CodePermissionDenied, "orchestration.spawn", "child authority is not a subset of parent authority") }
 	if !spec.Budget.Fits(account.Available) { return SpawnOutcome{}, errs.New(errs.CodeResourceExhausted, "orchestration.spawn", "child budget exceeds parent available budget") }
 	if spec.Deadline != nil && !spec.Deadline.After(s.clock.Now()) { return SpawnOutcome{}, errs.New(errs.CodeInvalidArgument, "orchestration.spawn", "deadline must be in the future") }
 	if parent.LineageDepth+1 > account.Policy.MaxDepth { return SpawnOutcome{}, errs.New(errs.CodeResourceExhausted, "orchestration.spawn", "maximum recursive depth reached") }
@@ -91,14 +90,17 @@ func (s *Service) Spawn(ctx context.Context, spec SpawnSpec) (SpawnOutcome, erro
 
 	key := taskKey(spec)
 	if spec.ReuseCompleted && !spec.IndependentVerification {
-		if existing, ok, findErr := s.store.FindReusableSpawn(ctx, parent.RootAgentID, key); findErr != nil { return SpawnOutcome{}, findErr
+		if existing, ok, findErr := s.store.FindReusableSpawn(ctx, parent.RootAgentID, key); findErr != nil {
+			return SpawnOutcome{}, findErr
 		} else if ok && existing.ChildAgentID != "" {
 			result, hasResult, resultErr := s.store.Result(ctx, existing.ChildAgentID)
 			if resultErr != nil { return SpawnOutcome{}, resultErr }
 			if hasResult {
 				child, inspectErr := s.processes.Inspect(ctx, existing.ChildAgentID)
 				if inspectErr != nil { return SpawnOutcome{}, inspectErr }
-				return SpawnOutcome{Spawn: existing, Child: child, Reused: true, Result: &result}, nil
+				if child.Status == process.StatusCompleted {
+					return SpawnOutcome{Spawn: existing, Child: child, Reused: true, Result: &result}, nil
+				}
 			}
 		}
 	}
@@ -107,7 +109,6 @@ func (s *Service) Spawn(ctx context.Context, spec SpawnSpec) (SpawnOutcome, erro
 	reservationID, err := s.ids.BudgetReservation(); if err != nil { return SpawnOutcome{}, errs.Wrap(errs.CodeInternal, "orchestration.spawn", "generate reservation id", err) }
 	now := s.clock.Now().UTC()
 	record := SpawnRecord{ID: spawnID, ParentAgentID: parent.AgentID, RootAgentID: parent.RootAgentID, Depth: parent.LineageDepth+1, TaskIntent: strings.TrimSpace(spec.TaskIntent), TaskKey: key, Authority: canonicalAuthority(spec.Authority), ReservationID: reservationID, Reserved: spec.Budget, Status: SpawnReserved, CreatedAt: now, UpdatedAt: now}
-	// ReserveSpawn is atomic: it records the spawn and debits the parent before a child can become READY.
 	if err := s.store.ReserveSpawn(ctx, record); err != nil { return SpawnOutcome{}, err }
 
 	meta, err := s.commandMeta(parent.AgentID)
@@ -150,7 +151,8 @@ func (s *Service) Send(ctx context.Context, message AgentMessage) (AgentMessage,
 }
 
 func (s *Service) Mailbox(ctx context.Context, agentID id.AgentID, limit int) ([]AgentMessage, error) {
-	if limit <= 0 { limit = 64 }; if limit > 256 { limit = 256 }
+	if limit <= 0 { limit = 64 }
+	if limit > 256 { limit = 256 }
 	return s.store.Mailbox(ctx, agentID, limit)
 }
 
@@ -190,7 +192,7 @@ func (s *Service) EvaluateWait(ctx context.Context, wait WaitSpec) (bool, error)
 	done := false
 	switch wait.Mode {
 	case WaitOne: done = terminal > 0
-	case WaitAll: done = terminal == len(wait.Children)
+	case WaitAll: done = terminal == len(wait.Children) || (wait.Failure == FailureFailFast && failed > 0)
 	case WaitFirstSuccess: done = succeeded > 0 || (wait.Failure == FailureFailFast && failed > 0) || terminal == len(wait.Children)
 	case WaitQuorum: done = succeeded >= wait.Quorum || (wait.Failure == FailureFailFast && failed > 0) || succeeded+(len(wait.Children)-terminal) < wait.Quorum
 	default: return false, errs.New(errs.CodeInvalidArgument, "orchestration.evaluate_wait", "unknown wait mode")
@@ -208,10 +210,9 @@ func (s *Service) EvaluateWait(ctx context.Context, wait WaitSpec) (bool, error)
 
 func (s *Service) CancelTree(ctx context.Context, root id.AgentID, reason string) error {
 	rootState, err := s.processes.Inspect(ctx, root); if err != nil { return err }
-	ids, err := s.store.Descendants(ctx, root); if err != nil { return err }
-	ids = append(ids, root)
-	sort.Slice(ids, func(i,j int) bool { return ids[i] > ids[j] })
-	for _, agentID := range ids {
+	descendants, err := s.store.Descendants(ctx, root); if err != nil { return err }
+	descendants = append(descendants, root)
+	for _, agentID := range descendants {
 		state, inspectErr := s.processes.Inspect(ctx, agentID); if inspectErr != nil { return inspectErr }
 		if state.Status.Terminal() || state.Cancel.Requested { continue }
 		meta, metaErr := s.commandMeta(rootState.AgentID); if metaErr != nil { return metaErr }
@@ -223,22 +224,23 @@ func (s *Service) CancelTree(ctx context.Context, root id.AgentID, reason string
 
 func (s *Service) AdmitFair(ctx context.Context, globalSlots int) ([]Admission, error) {
 	if globalSlots <= 0 { return nil, nil }
-	// Store performs round-robin root selection; root parallelism is enforced by persisted account policy.
 	return s.store.DequeueFair(ctx, globalSlots, 1)
 }
 
 func (s *Service) wouldCycle(ctx context.Context, parent, child id.AgentID, limit int) (bool, error) {
 	if parent == child { return true, nil }
-	seen := map[id.AgentID]struct{}{child:{}}
+	seen := map[id.AgentID]struct{}{child: {}}
 	queue := []id.AgentID{child}
 	for len(queue) > 0 {
 		if len(seen) > limit { return false, errs.New(errs.CodeResourceExhausted, "orchestration.wait", "wait graph traversal bound exceeded") }
-		current := queue[0]; queue = queue[1:]
+		current := queue[0]
+		queue = queue[1:]
 		next, err := s.store.WaitEdges(ctx, current); if err != nil { return false, err }
 		for _, candidate := range next {
 			if candidate == parent { return true, nil }
 			if _, ok := seen[candidate]; ok { continue }
-			seen[candidate] = struct{}{}; queue = append(queue, candidate)
+			seen[candidate] = struct{}{}
+			queue = append(queue, candidate)
 		}
 	}
 	return false, nil
@@ -290,7 +292,8 @@ func related(a, b process.State) bool {
 }
 
 func uniqueAgents(in []id.AgentID) []id.AgentID {
-	seen := make(map[id.AgentID]struct{}, len(in)); out := make([]id.AgentID,0,len(in))
+	seen := make(map[id.AgentID]struct{}, len(in))
+	out := make([]id.AgentID,0,len(in))
 	for _, v := range in { if v == "" { continue }; if _,ok:=seen[v]; ok { continue }; seen[v]=struct{}{}; out=append(out,v) }
 	sort.Slice(out, func(i,j int) bool { return out[i] < out[j] })
 	return out
