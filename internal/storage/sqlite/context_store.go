@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"math"
 	"strings"
 	"time"
 	"unicode"
@@ -111,7 +110,7 @@ LIMIT ?`, args...)
 			if scanErr != nil {
 				return nil, errs.Wrap(errs.CodeCorruption, "sqlite.context_page.search", "scan ranked context page", scanErr)
 			}
-			results = append(results, mmu.Candidate{Meta: meta, LexicalScore: 1 / (1 + math.Abs(rank))})
+			results = append(results, mmu.Candidate{Meta: meta, LexicalScore: normalizeBM25(rank)})
 			continue
 		}
 		meta, scanErr := scanContextPage(rows)
@@ -124,6 +123,36 @@ LIMIT ?`, args...)
 		return nil, errs.Wrap(errs.CodeUnavailable, "sqlite.context_page.search", "iterate context pages", err)
 	}
 	return results, nil
+}
+
+func (s *Store) PinnedContextPages(ctx context.Context, agentID id.AgentID, scopes []mmu.Scope, now time.Time) ([]mmu.PageMeta, error) {
+	where, args := contextFilters(agentID, scopes, nil)
+	args = append(args, formatTime(now))
+	rows, err := s.db.QueryContext(ctx, `
+SELECT `+prefixedContextColumns("p")+`
+FROM context_pages p
+WHERE `+where+`
+  AND p.pinned_until IS NOT NULL
+  AND p.pinned_until > ?
+  AND p.superseded_by IS NULL
+ORDER BY p.pinned_until DESC, p.page_id`, args...)
+	if err != nil {
+		return nil, errs.Wrap(errs.CodeUnavailable, "sqlite.context_page.pinned", "query pinned context pages", err)
+	}
+	defer rows.Close()
+
+	pages := make([]mmu.PageMeta, 0)
+	for rows.Next() {
+		meta, scanErr := scanContextPage(rows)
+		if scanErr != nil {
+			return nil, errs.Wrap(errs.CodeCorruption, "sqlite.context_page.pinned", "scan pinned context page", scanErr)
+		}
+		pages = append(pages, meta)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, errs.Wrap(errs.CodeUnavailable, "sqlite.context_page.pinned", "iterate pinned context pages", err)
+	}
+	return pages, nil
 }
 
 func (s *Store) TouchContextPages(ctx context.Context, agentID id.AgentID, pageIDs []id.ContextPageID, at time.Time) error {
@@ -139,6 +168,24 @@ func (s *Store) TouchContextPages(ctx context.Context, agentID id.AgentID, pageI
 	_, err := s.db.ExecContext(ctx, `UPDATE context_pages SET last_accessed_at = ? WHERE agent_id = ? AND page_id IN (`+placeholders+`)`, args...)
 	if err != nil {
 		return errs.Wrap(errs.CodeUnavailable, "sqlite.context_page.touch", "touch context pages", err)
+	}
+	return nil
+}
+
+func (s *Store) MarkContextPageSuperseded(ctx context.Context, agentID id.AgentID, oldID, newID id.ContextPageID) error {
+	result, err := s.db.ExecContext(ctx, `
+UPDATE context_pages
+SET superseded_by = ?
+WHERE agent_id = ? AND page_id = ? AND superseded_by IS NULL`, newID.String(), agentID.String(), oldID.String())
+	if err != nil {
+		return errs.Wrap(errs.CodeUnavailable, "sqlite.context_page.supersede", "mark context page superseded", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return errs.Wrap(errs.CodeUnavailable, "sqlite.context_page.supersede", "read supersede result", err)
+	}
+	if changed != 1 {
+		return errs.New(errs.CodeConflict, "sqlite.context_page.supersede", "page was not superseded")
 	}
 	return nil
 }
@@ -317,6 +364,17 @@ func scanContextPageRank(scanner rowScanner, withRank bool) (mmu.PageMeta, float
 		return mmu.PageMeta{}, 0, err
 	}
 	return meta, rank, nil
+}
+
+func normalizeBM25(rank float64) float64 {
+	// SQLite FTS5 bm25() is negative and orders better matches first (more
+	// negative). Convert that ordering into the MMU's [0,1) higher-is-better
+	// lexical component without making the rank a correctness dependency.
+	quality := -rank
+	if quality <= 0 {
+		return 0
+	}
+	return quality / (1 + quality)
 }
 
 func contextFilters(agentID id.AgentID, scopes []mmu.Scope, types []mmu.PageType) (string, []any) {
