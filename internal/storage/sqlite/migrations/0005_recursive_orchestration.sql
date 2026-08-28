@@ -21,6 +21,8 @@ CREATE TABLE orchestration_spawns (
     authority_json TEXT NOT NULL,
     reservation_id TEXT NOT NULL UNIQUE,
     reserved_json TEXT NOT NULL,
+    result_contract_json TEXT NOT NULL,
+    deadline TEXT,
     status TEXT NOT NULL,
     reject_reason TEXT,
     actual_json TEXT,
