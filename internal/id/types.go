@@ -16,19 +16,27 @@ type RuntimeInstanceID string
 type SnapshotID string
 type CheckpointID string
 type ContextPageID string
+type SpawnID string
+type MessageID string
+type BudgetReservationID string
+type WaitID string
 
-func (id AgentID) String() string           { return string(id) }
-func (id EventID) String() string           { return string(id) }
-func (id InvocationID) String() string      { return string(id) }
-func (id ActionID) String() string          { return string(id) }
-func (id TransactionID) String() string     { return string(id) }
-func (id WorldID) String() string           { return string(id) }
-func (id CorrelationID) String() string     { return string(id) }
-func (id RequestID) String() string         { return string(id) }
-func (id IntentID) String() string          { return string(id) }
-func (id SleepID) String() string           { return string(id) }
-func (id LeaseID) String() string           { return string(id) }
-func (id RuntimeInstanceID) String() string { return string(id) }
-func (id SnapshotID) String() string        { return string(id) }
-func (id CheckpointID) String() string      { return string(id) }
-func (id ContextPageID) String() string     { return string(id) }
+func (id AgentID) String() string              { return string(id) }
+func (id EventID) String() string              { return string(id) }
+func (id InvocationID) String() string         { return string(id) }
+func (id ActionID) String() string             { return string(id) }
+func (id TransactionID) String() string        { return string(id) }
+func (id WorldID) String() string              { return string(id) }
+func (id CorrelationID) String() string        { return string(id) }
+func (id RequestID) String() string            { return string(id) }
+func (id IntentID) String() string             { return string(id) }
+func (id SleepID) String() string              { return string(id) }
+func (id LeaseID) String() string              { return string(id) }
+func (id RuntimeInstanceID) String() string    { return string(id) }
+func (id SnapshotID) String() string           { return string(id) }
+func (id CheckpointID) String() string         { return string(id) }
+func (id ContextPageID) String() string        { return string(id) }
+func (id SpawnID) String() string              { return string(id) }
+func (id MessageID) String() string            { return string(id) }
+func (id BudgetReservationID) String() string  { return string(id) }
+func (id WaitID) String() string               { return string(id) }
