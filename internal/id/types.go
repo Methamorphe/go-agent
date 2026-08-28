@@ -15,6 +15,7 @@ type LeaseID string
 type RuntimeInstanceID string
 type SnapshotID string
 type CheckpointID string
+type ContextPageID string
 
 func (id AgentID) String() string           { return string(id) }
 func (id EventID) String() string           { return string(id) }
@@ -30,3 +31,4 @@ func (id LeaseID) String() string           { return string(id) }
 func (id RuntimeInstanceID) String() string { return string(id) }
 func (id SnapshotID) String() string        { return string(id) }
 func (id CheckpointID) String() string      { return string(id) }
+func (id ContextPageID) String() string     { return string(id) }
