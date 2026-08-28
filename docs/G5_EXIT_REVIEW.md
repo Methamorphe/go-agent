@@ -2,7 +2,7 @@
 
 ## Status
 
-**G5 — Recursive Agent Processes: COMPLETE candidate.**
+**G5 — Recursive Agent Processes: COMPLETE.**
 
 Implementation branch: `g5-recursive-agent-processes`  
 Pull request: **#2 — `feat(g5): implement Recursive Agent Processes`**
@@ -37,68 +37,23 @@ A child cannot become READY before its budget reservation exists durably.
 
 ### Hierarchical authority and budgets
 
-Each orchestration account persists:
-
-- delegated capability grants;
-- available budget;
-- reserved budget;
-- root orchestration policy.
+Each orchestration account persists delegated capability grants, available budget, reserved budget and root orchestration policy.
 
 Child authority can only narrow parent authority. Child budget can only be carved from currently available parent budget. Settlement is idempotent and returns unused reservation to the parent.
 
 ### Result / evidence contract
 
-Each spawn durably stores:
-
-- `ResultContract`;
-- optional deadline;
-- bounded inline result size;
-- whether evidence references are mandatory.
-
-Settlement rejects:
-
-- non-terminal child results;
-- result summaries above the delegated bound;
-- missing evidence when evidence is required;
-- usage exceeding the reservation.
-
-Large artifacts remain object references instead of being copied into hot orchestration state.
+Each spawn durably stores its `ResultContract` and optional deadline. Settlement rejects non-terminal child results, oversized inline summaries, missing evidence when required, and usage above the reservation. Large artifacts remain Object Store references.
 
 ### Bounded durable messaging
 
-G5 adds durable per-agent mailboxes with:
-
-- stable idempotent `MessageID`;
-- parent/child and sibling communication only within the same root tree;
-- message classes for request/response/evidence/status/result/cancel;
-- bounded message count and aggregate bytes;
-- explicit backpressure;
-- object references for large payloads;
-- prioritized terminal/result delivery;
-- explicit consume semantics.
+G5 adds durable per-agent mailboxes with stable idempotent `MessageID`, same-root parent/child or sibling communication, typed message classes, bounded count/bytes, explicit backpressure, object refs for large payloads, terminal-result priority and explicit consume semantics.
 
 ### Durable parent waits
 
-Supported wait modes:
+Supported wait modes are `ONE`, `ALL`, `FIRST_SUCCESS` and `QUORUM`, with `FAIL_FAST`, `COLLECT_ALL` and `BEST_EFFORT` failure policies.
 
-```text
-ONE
-ALL
-FIRST_SUCCESS
-QUORUM
-```
-
-with failure policies:
-
-```text
-FAIL_FAST
-COLLECT_ALL
-BEST_EFFORT
-```
-
-Wait objects and wait edges are persisted in SQLite. Parent process state uses the existing durable `WAITING_CHILD` process state and can be reconstructed after runtime restart.
-
-`ChildTerminal` / `SettleAndNotify` reconciles durable waits and wakes eligible parents without requiring an in-memory waiter goroutine.
+Wait objects and wait edges are persisted in SQLite. Parent process state uses the existing durable `WAITING_CHILD` state and survives restart. `ChildTerminal` / `SettleAndNotify` reconciles waits and wakes eligible parents without one waiter goroutine per child.
 
 ### Wait-cycle prevention
 
@@ -106,25 +61,15 @@ Before a new durable wait edge is committed, G5 performs a bounded traversal of 
 
 ### Cancellation tree
 
-`CancelTree` walks persisted descendants and requests cancellation descendants-first, then the selected subtree root. Repeated cancellation is idempotent because terminal/already-cancelled processes are skipped.
+`CancelTree` walks persisted descendants and requests cancellation descendants-first, then the selected subtree root. Repeated cancellation is idempotent.
 
 ### Fan-out, depth, parallelism and fairness
 
-Root policy persists and enforces:
+Root policy persists and enforces maximum total descendants, maximum children per node, recursive depth, active parallelism and mailbox limits. Admission is persisted and round-robins roots while respecting each root's `MaxParallelism`.
 
-- maximum total descendants;
-- maximum children per node;
-- maximum recursive depth;
-- maximum active children per root;
-- mailbox limits.
+### Duplicate-work suppression
 
-Admission is persisted and uses deterministic round-robin selection across roots while respecting each root's `MaxParallelism`, preventing one recursive storm from monopolizing all admitted child slots.
-
-### Duplicate work suppression
-
-A stable task key permits opt-in reuse of a previously completed, settled child result.
-
-Reuse occurs only when explicitly requested and the previous child is durably COMPLETED with a structured result. `IndependentVerification` explicitly disables reuse so redundant verification remains possible.
+A stable task key permits opt-in reuse of a previously completed, settled child result. `IndependentVerification` explicitly disables reuse.
 
 ### Runtime control integration
 
@@ -143,28 +88,19 @@ orchestration.cancel_tree
 orchestration.admit
 ```
 
-The terminal/client remains a disposable caller; canonical orchestration state stays in SQLite/Object Store/process ledger state.
+Canonical orchestration state stays in SQLite/Object Store/process ledger state, never in the terminal client.
 
 ---
 
 ## Persistence model
 
-Migration `0005_recursive_orchestration.sql` adds durable tables for:
+Migration `0005_recursive_orchestration.sql` adds durable orchestration accounts, spawn reservations, mailboxes, waits/wait edges, structured child results and admission state.
 
-- orchestration accounts;
-- spawn reservations;
-- bounded messages;
-- waits and wait edges;
-- structured child results;
-- admission queue state.
-
-Budget reservation and spawn recording occur in one SQLite transaction. Rejection releases the reservation transactionally. Settlement atomically releases unused reservation and records actual usage.
+Budget reservation and spawn recording occur in one SQLite transaction. Rejection releases reservation transactionally. Settlement releases unused reservation and records actual usage.
 
 ---
 
 ## Validation matrix
-
-G5 includes direct tests for the A0 recursive-orchestration invariants:
 
 | Contract | Validation |
 |---|---|
@@ -175,51 +111,31 @@ G5 includes direct tests for the A0 recursive-orchestration invariants:
 | ORCH-005 | mailbox count/bytes are bounded with explicit backpressure |
 | ORCH-006 | wait cycle is rejected before graph commit |
 | ORCH-007 | cancellation propagates through descendants and is idempotent |
-| ORCH-008 | large child result is returned by object reference + bounded summary |
+| ORCH-008 | large child result is returned by object ref + bounded summary |
 | ORCH-009 | fan-out limit is deterministic |
 | ORCH-010 | durable parent wait survives SQLite close/reopen |
 | ORCH-011 | fail-fast wait wakes parent on terminal child failure |
 | ORCH-014 | fair admission prevents one root from starving another |
 | ORCH-015 | duplicate completed work is reused only when explicitly allowed |
 
-Additional G5 tests verify:
+Additional tests verify evidence-required result contracts, inline-result bounds, persisted `MaxParallelism`, slot reuse, and the complete three-investigator restart scenario.
 
-- evidence-required result contracts;
-- max inline result enforcement;
-- persisted `MaxParallelism` enforcement and slot reuse;
-- the full G5 killer scenario with three child investigators, runtime-store reopen, structured evidence results and parent wake-up only after the wait condition is satisfied.
-
-### Contract tests intentionally belonging to later generations
-
-The A0 document also names:
-
-- **ORCH-012** bounded negotiation rounds → implemented in **G11 — Adaptive Teams + Agent Negotiation**;
-- **ORCH-013** selective child knowledge promotion → implemented in **G9 — Epistemic Memory + Truth Maintenance**.
-
-They are intentionally not pulled forward into G5 because doing so would collapse the accepted generation boundaries.
+The A0 catalog's **ORCH-012** negotiation test remains assigned to **G11**, and **ORCH-013** selective epistemic promotion remains assigned to **G9**. They are intentionally not pulled into G5 because that would violate the accepted generation boundaries.
 
 ---
 
 ## CI validation
 
-Primary code-validation run:
+GitHub Actions run `33214615854` passed:
 
 ```text
-GitHub Actions run 33214615854
+test (ubuntu-latest)  ✅
+test (macos-latest)   ✅
+test (windows-latest) ✅
+race                   ✅
 ```
 
-The run executes:
-
-```text
-go test ./...
-go vet ./...
-go build ./cmd/go-agent ./cmd/go-agentctl
-go test -race ./...
-```
-
-across Ubuntu, macOS and Windows for the platform job matrix, with the race detector on Ubuntu.
-
-The final G5 merge must only occur after the current branch head is green.
+The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-agent ./cmd/go-agentctl`; the race job passed `go test -race ./...`.
 
 ---
 
@@ -228,19 +144,21 @@ The final G5 merge must only occur after the current branch head is green.
 `TestG5KillerThreeInvestigatorsSurviveRestartAndReturnStructuredEvidence` proves the generation goal:
 
 1. root creates three bounded delegated investigators;
-2. each child receives separate Task Intent, authority and budget;
-3. root enters a durable `WAITING_CHILD` wait on all three;
+2. each gets separate Task Intent, authority, budget and result contract;
+3. root enters durable `WAITING_CHILD` on all three;
 4. SQLite is closed and reopened;
-5. the wait and children are reconstructed from durable state;
-6. children complete and settle bounded structured reports with evidence references;
-7. terminal reconciliation wakes the parent only when the wait condition is satisfied;
-8. no child transcript is imported into parent hot context as the result contract uses summary/artifact/evidence references.
+5. wait and child state are reconstructed;
+6. children complete and settle bounded reports with evidence refs;
+7. parent wakes only when the wait condition is satisfied;
+8. child transcripts are not copied into parent hot context.
 
 ---
 
 ## G5 result
 
-The implementation satisfies the G5 roadmap deliverables:
+**PASS.**
+
+G5 satisfies its roadmap deliverables:
 
 ```text
 spawn validate/reserve/create
@@ -257,4 +175,4 @@ runtime control integration
 restart-safe killer scenario
 ```
 
-Once the final CI head is green, **G5 is COMPLETE and G6 — Cognitive Scheduler v0 is READY.**
+**G5 is COMPLETE. G6 — Cognitive Scheduler v0 is READY.**
