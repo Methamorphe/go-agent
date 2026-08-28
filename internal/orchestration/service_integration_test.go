@@ -16,163 +16,23 @@ import (
 	"github.com/Methamorphe/go-agent/internal/storage/sqlite"
 )
 
-type harness struct {
-	ctx context.Context
-	store *sqlite.Store
-	ids *id.Generator
-	clock *clock.FakeClock
-	processes *process.Service
-	orchestrator *orchestration.Service
-	root process.State
-}
+type harness struct { ctx context.Context; store *sqlite.Store; ids *id.Generator; clock *clock.FakeClock; processes *process.Service; orchestrator *orchestration.Service; root process.State }
+func newHarness(t *testing.T,policy orchestration.RootPolicy)*harness{t.Helper();ctx:=context.Background();clk:=clock.NewFakeClock(time.Date(2026,8,28,21,0,0,0,time.UTC));store,err:=sqlite.Open(ctx,sqlite.Config{Path:t.TempDir()+"/runtime.db",Clock:clk});if err!=nil{t.Fatal(err)};t.Cleanup(func(){_ = store.Close()});ids:=id.NewGenerator();processes:=process.NewService(store,ids,clk);root,err:=processes.CreateRoot(ctx,"root task",process.CommandMeta{});if err!=nil{t.Fatal(err)};orchestrator,err:=orchestration.New(store,processes,ids,clk);if err!=nil{t.Fatal(err)};if err:=orchestrator.BootstrapRoot(ctx,root.AgentID,policy);err!=nil{t.Fatal(err)};return &harness{ctx,store,ids,clk,processes,orchestrator,root}}
+func defaultPolicy()orchestration.RootPolicy{return orchestration.RootPolicy{Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace"},{Domain:"process.execute",Scope:"workspace"}},Budget:orchestration.Budget{Tokens:100000,ToolCalls:1000,StorageBytes:1<<30,WorldMillis:1000000,MoneyMicros:10000000},MaxTotalDescendants:2000,MaxChildrenPerNode:2000,MaxDepth:8,MaxParallelism:4,MailboxMessages:8,MailboxBytes:1024}}
+func spawn(t *testing.T,h *harness,parent id.AgentID,task string)orchestration.SpawnOutcome{t.Helper();out,err:=h.orchestrator.Spawn(h.ctx,orchestration.SpawnSpec{ParentAgentID:parent,TaskIntent:task,Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:1000,ToolCalls:10,StorageBytes:1024,WorldMillis:1000,MoneyMicros:1000}});if err!=nil{t.Fatal(err)};return out}
+func activate(t *testing.T,h *harness,agentID id.AgentID)process.State{t.Helper();state,err:=h.processes.Inspect(h.ctx,agentID);if err!=nil{t.Fatal(err)};if state.Status==process.StatusRunning{return state};expected:=state.Version;running,err:=h.processes.Activate(h.ctx,agentID,id.RuntimeInstanceID("run_test"),&expected,process.CommandMeta{});if err!=nil{t.Fatal(err)};return running}
+func complete(t *testing.T,h *harness,agentID id.AgentID)process.State{t.Helper();running:=activate(t,h,agentID);expected:=running.Version;done,err:=h.processes.Complete(h.ctx,agentID,&expected,"result",process.CommandMeta{});if err!=nil{t.Fatal(err)};return done}
 
-func newHarness(t *testing.T, policy orchestration.RootPolicy) *harness {
-	t.Helper()
-	ctx := context.Background()
-	clk := clock.NewFakeClock(time.Date(2026, 8, 28, 21, 0, 0, 0, time.UTC))
-	store, err := sqlite.Open(ctx, sqlite.Config{Path: t.TempDir()+"/runtime.db", Clock: clk})
-	if err != nil { t.Fatal(err) }
-	t.Cleanup(func(){ _ = store.Close() })
-	ids := id.NewGenerator()
-	processes := process.NewService(store, ids, clk)
-	root, err := processes.CreateRoot(ctx, "root task", process.CommandMeta{})
-	if err != nil { t.Fatal(err) }
-	orchestrator, err := orchestration.New(store, processes, ids, clk)
-	if err != nil { t.Fatal(err) }
-	if err := orchestrator.BootstrapRoot(ctx, root.AgentID, policy); err != nil { t.Fatal(err) }
-	return &harness{ctx:ctx, store:store, ids:ids, clock:clk, processes:processes, orchestrator:orchestrator, root:root}
-}
-
-func defaultPolicy() orchestration.RootPolicy {
-	return orchestration.RootPolicy{
-		Authority: []orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace"},{Domain:"process.execute",Scope:"workspace"}},
-		Budget: orchestration.Budget{Tokens:100000,ToolCalls:1000,StorageBytes:1<<30,WorldMillis:1000000,MoneyMicros:10000000},
-		MaxTotalDescendants: 2000, MaxChildrenPerNode: 2000, MaxDepth: 8, MaxParallelism: 4, MailboxMessages: 8, MailboxBytes: 1024,
-	}
-}
-
-func spawn(t *testing.T, h *harness, parent id.AgentID, task string) orchestration.SpawnOutcome {
-	t.Helper()
-	out, err := h.orchestrator.Spawn(h.ctx, orchestration.SpawnSpec{ParentAgentID:parent,TaskIntent:task,Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:1000,ToolCalls:10,StorageBytes:1024,WorldMillis:1000,MoneyMicros:1000}})
-	if err != nil { t.Fatal(err) }
-	return out
-}
-
-func activate(t *testing.T, h *harness, agentID id.AgentID) process.State {
-	t.Helper()
-	state, err := h.processes.Inspect(h.ctx, agentID)
-	if err != nil { t.Fatal(err) }
-	if state.Status == process.StatusRunning { return state }
-	expected := state.Version
-	running, err := h.processes.Activate(h.ctx, agentID, id.RuntimeInstanceID("run_test"), &expected, process.CommandMeta{})
-	if err != nil { t.Fatal(err) }
-	return running
-}
-
-func TestORCH001ChildAuthorityIsSubset(t *testing.T) {
-	h := newHarness(t, defaultPolicy())
-	_, err := h.orchestrator.Spawn(h.ctx, orchestration.SpawnSpec{ParentAgentID:h.root.AgentID,TaskIntent:"escape",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.write",Scope:"workspace"}},Budget:orchestration.Budget{Tokens:1}})
-	if !errs.IsCode(err, errs.CodePermissionDenied) { t.Fatalf("expected permission denied, got %v", err) }
-}
-
-func TestORCH002BudgetReservedBeforeChildReady(t *testing.T) {
-	h := newHarness(t, defaultPolicy())
-	before, _ := h.store.Account(h.ctx, h.root.AgentID)
-	out := spawn(t,h,h.root.AgentID,"inspect auth")
-	if out.Child.Status != process.StatusReady { t.Fatalf("child status = %s", out.Child.Status) }
-	after, _ := h.store.Account(h.ctx, h.root.AgentID)
-	if after.Available.Tokens != before.Available.Tokens-1000 || after.Reserved.Tokens != 1000 { t.Fatalf("reservation not durable before READY: before=%+v after=%+v", before, after) }
-}
-
-func TestORCH003ThousandSleepingChildrenDoNotCreateResidentGoroutines(t *testing.T) {
-	policy := defaultPolicy(); policy.MaxTotalDescendants=1200; policy.MaxChildrenPerNode=1200
-	h := newHarness(t, policy)
-	baseline := runtime.NumGoroutine()
-	for i:=0;i<1000;i++ {
-		child, err := h.processes.CreateDelegatedChild(h.ctx,h.root.AgentID,"sleeping child",process.CommandMeta{})
-		if err != nil { t.Fatal(err) }
-		running := activate(t,h,child.AgentID)
-		expected:=running.Version
-		if _,err:=h.processes.Sleep(h.ctx,child.AgentID,&expected,h.clock.Now().Add(time.Hour),process.CommandMeta{});err!=nil{t.Fatal(err)}
-	}
-	if delta:=runtime.NumGoroutine()-baseline;delta>20{t.Fatalf("1000 sleeping children created %d resident goroutines",delta)}
-}
-
-func TestORCH004MessageIDIdempotent(t *testing.T) {
-	h:=newHarness(t,defaultPolicy()); child:=spawn(t,h,h.root.AgentID,"child")
-	messageID, _ := h.ids.Message()
-	msg:=orchestration.AgentMessage{ID:messageID,From:h.root.AgentID,To:child.Child.AgentID,Type:orchestration.MessageRequest,Inline:"hello"}
-	_,inserted,err:=h.orchestrator.Send(h.ctx,msg);if err!=nil||!inserted{t.Fatalf("first send: inserted=%v err=%v",inserted,err)}
-	_,inserted,err=h.orchestrator.Send(h.ctx,msg);if err!=nil||inserted{t.Fatalf("duplicate send: inserted=%v err=%v",inserted,err)}
-}
-
-func TestORCH005MailboxBackpressureBounded(t *testing.T) {
-	policy:=defaultPolicy();policy.MailboxMessages=2;policy.MailboxBytes=32
-	h:=newHarness(t,policy);child:=spawn(t,h,h.root.AgentID,"child")
-	for i:=0;i<2;i++{if _,_,err:=h.orchestrator.Send(h.ctx,orchestration.AgentMessage{From:h.root.AgentID,To:child.Child.AgentID,Type:orchestration.MessageStatus,Inline:"12345678"});err!=nil{t.Fatal(err)}}
-	_,_,err:=h.orchestrator.Send(h.ctx,orchestration.AgentMessage{From:h.root.AgentID,To:child.Child.AgentID,Type:orchestration.MessageStatus,Inline:"overflow"})
-	if !errs.IsCode(err,errs.CodeResourceExhausted){t.Fatalf("expected mailbox backpressure, got %v",err)}
-	messages,err:=h.orchestrator.Mailbox(h.ctx,child.Child.AgentID,100);if err!=nil{t.Fatal(err)};if len(messages)!=2{t.Fatalf("mailbox grew to %d",len(messages))}
-}
-
-func TestORCH006WaitCycleRejectedBeforeCommit(t *testing.T) {
-	h:=newHarness(t,defaultPolicy());a:=spawn(t,h,h.root.AgentID,"a");b:=spawn(t,h,h.root.AgentID,"b")
-	activate(t,h,a.Child.AgentID)
-	if _,_,err:=h.orchestrator.WaitFor(h.ctx,a.Child.AgentID,[]id.AgentID{b.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureCollectAll);err!=nil{t.Fatal(err)}
-	activate(t,h,b.Child.AgentID)
-	_,_,err:=h.orchestrator.WaitFor(h.ctx,b.Child.AgentID,[]id.AgentID{a.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureCollectAll)
-	if !errs.IsCode(err,errs.CodeConflict){t.Fatalf("expected wait cycle conflict, got %v",err)}
-	edges,err:=h.store.WaitEdges(h.ctx,b.Child.AgentID);if err!=nil{t.Fatal(err)};if len(edges)!=0{t.Fatalf("cycle edge was committed: %v",edges)}
-}
-
-func TestORCH007CancelTreeIdempotent(t *testing.T) {
-	h:=newHarness(t,defaultPolicy());a:=spawn(t,h,h.root.AgentID,"a");b:=spawn(t,h,a.Child.AgentID,"b")
-	if err:=h.orchestrator.CancelTree(h.ctx,h.root.AgentID,"stop");err!=nil{t.Fatal(err)}
-	if err:=h.orchestrator.CancelTree(h.ctx,h.root.AgentID,"stop again");err!=nil{t.Fatal(err)}
-	for _,agentID:=range []id.AgentID{h.root.AgentID,a.Child.AgentID,b.Child.AgentID}{state,err:=h.processes.Inspect(h.ctx,agentID);if err!=nil{t.Fatal(err)};if state.Status!=process.StatusCancelled{t.Fatalf("%s status=%s",agentID,state.Status)}}
-}
-
-func TestORCH008LargeResultRemainsObjectReferenced(t *testing.T) {
-	h:=newHarness(t,defaultPolicy());out:=spawn(t,h,h.root.AgentID,"large result")
-	objects,err:=objectstore.New(t.TempDir()+"/objects");if err!=nil{t.Fatal(err)}
-	meta,err:=objects.Put(h.ctx,strings.NewReader(strings.Repeat("x",128<<10)));if err!=nil{t.Fatal(err)}
-	if err:=h.orchestrator.Settle(h.ctx,out.Spawn.ID,orchestration.Budget{Tokens:100},orchestration.ChildResult{Summary:"bounded summary",ArtifactRef:meta.Ref});err!=nil{t.Fatal(err)}
-	result,ok,err:=h.store.Result(h.ctx,out.Child.AgentID);if err!=nil||!ok{t.Fatalf("result err=%v ok=%v",err,ok)};if result.ArtifactRef==""||len(result.Summary)>1024{t.Fatalf("result not object referenced: %+v",result)}
-}
-
-func TestORCH009FanoutLimitDeterministic(t *testing.T) {
-	policy:=defaultPolicy();policy.MaxChildrenPerNode=2
-	h:=newHarness(t,policy);spawn(t,h,h.root.AgentID,"one");spawn(t,h,h.root.AgentID,"two")
-	_,err:=h.orchestrator.Spawn(h.ctx,orchestration.SpawnSpec{ParentAgentID:h.root.AgentID,TaskIntent:"three",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:1}})
-	if !errs.IsCode(err,errs.CodeResourceExhausted){t.Fatalf("expected fanout limit, got %v",err)}
-}
-
-func TestORCH010ParentWaitSurvivesStoreReopen(t *testing.T) {
-	ctx:=context.Background();dir:=t.TempDir();clk:=clock.NewFakeClock(time.Date(2026,8,28,21,0,0,0,time.UTC));ids:=id.NewGenerator()
-	store,err:=sqlite.Open(ctx,sqlite.Config{Path:dir+"/runtime.db",Clock:clk});if err!=nil{t.Fatal(err)};processes:=process.NewService(store,ids,clk);root,err:=processes.CreateRoot(ctx,"root",process.CommandMeta{});if err!=nil{t.Fatal(err)};svc,_:=orchestration.New(store,processes,ids,clk);if err:=svc.BootstrapRoot(ctx,root.AgentID,defaultPolicy());err!=nil{t.Fatal(err)};out,err:=svc.Spawn(ctx,orchestration.SpawnSpec{ParentAgentID:root.AgentID,TaskIntent:"child",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:100}});if err!=nil{t.Fatal(err)}
-	expected:=root.Version;running,err:=processes.Activate(ctx,root.AgentID,id.RuntimeInstanceID("run_wait"),&expected,process.CommandMeta{});if err!=nil{t.Fatal(err)};_ = running
-	wait,_,err:=svc.WaitFor(ctx,root.AgentID,[]id.AgentID{out.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureCollectAll);if err!=nil{t.Fatal(err)};_ = store.Close()
-	store,err=sqlite.Open(ctx,sqlite.Config{Path:dir+"/runtime.db",Clock:clk});if err!=nil{t.Fatal(err)};defer store.Close();waits,err:=store.WaitsForChild(ctx,out.Child.AgentID);if err!=nil{t.Fatal(err)};if len(waits)!=1||waits[0].ID!=wait.ID{t.Fatalf("wait not recovered: %+v",waits)}
-}
-
-func TestORCH011FailFastWaitCompletesOnFailedChild(t *testing.T) {
-	h:=newHarness(t,defaultPolicy());out:=spawn(t,h,h.root.AgentID,"child");activate(t,h,h.root.AgentID);wait,_,err:=h.orchestrator.WaitFor(h.ctx,h.root.AgentID,[]id.AgentID{out.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureFailFast);if err!=nil{t.Fatal(err)}
-	child:=activate(t,h,out.Child.AgentID);expected:=child.Version;if _,err:=h.processes.Fail(h.ctx,child.AgentID,&expected,process.Failure{Code:"test",Message:"failed"},process.CommandMeta{});err!=nil{t.Fatal(err)}
-	done,err:=h.orchestrator.EvaluateWait(h.ctx,wait);if err!=nil{t.Fatal(err)};if !done{t.Fatal("fail-fast wait did not complete")}
-}
-
-func TestORCH014FairAdmissionAcrossRoots(t *testing.T) {
-	h:=newHarness(t,defaultPolicy())
-	root2,err:=h.processes.CreateRoot(h.ctx,"root2",process.CommandMeta{});if err!=nil{t.Fatal(err)};if err:=h.orchestrator.BootstrapRoot(h.ctx,root2.AgentID,defaultPolicy());err!=nil{t.Fatal(err)}
-	for i:=0;i<3;i++{spawn(t,h,h.root.AgentID,"storm")};spawn(t,h,root2.AgentID,"other root")
-	admitted,err:=h.orchestrator.AdmitFair(h.ctx,2);if err!=nil{t.Fatal(err)};if len(admitted)!=2{t.Fatalf("admitted=%d",len(admitted))};if admitted[0].RootID==admitted[1].RootID{t.Fatalf("one root starved the other: %+v",admitted)}
-}
-
-func TestORCH015CompletedDuplicateReuseIsExplicit(t *testing.T) {
-	h:=newHarness(t,defaultPolicy());spec:=orchestration.SpawnSpec{ParentAgentID:h.root.AgentID,TaskIntent:"same task",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:1000},ReuseCompleted:true}
-	first,err:=h.orchestrator.Spawn(h.ctx,spec);if err!=nil{t.Fatal(err)}
-	child:=activate(t,h,first.Child.AgentID);expected:=child.Version;completed,err:=h.processes.Complete(h.ctx,child.AgentID,&expected,"result",process.CommandMeta{});if err!=nil{t.Fatal(err)};if completed.Status!=process.StatusCompleted{t.Fatal("child not completed")}
-	if err:=h.orchestrator.Settle(h.ctx,first.Spawn.ID,orchestration.Budget{Tokens:100},orchestration.ChildResult{Summary:"done"});err!=nil{t.Fatal(err)}
-	second,err:=h.orchestrator.Spawn(h.ctx,spec);if err!=nil{t.Fatal(err)};if !second.Reused||second.Child.AgentID!=first.Child.AgentID{t.Fatalf("completed task not reused: %+v",second)}
-	spec.IndependentVerification=true;third,err:=h.orchestrator.Spawn(h.ctx,spec);if err!=nil{t.Fatal(err)};if third.Reused||third.Child.AgentID==first.Child.AgentID{t.Fatal("independent verification was deduplicated")}
-}
+func TestORCH001ChildAuthorityIsSubset(t *testing.T){h:=newHarness(t,defaultPolicy());_,err:=h.orchestrator.Spawn(h.ctx,orchestration.SpawnSpec{ParentAgentID:h.root.AgentID,TaskIntent:"escape",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.write",Scope:"workspace"}},Budget:orchestration.Budget{Tokens:1}});if !errs.IsCode(err,errs.CodePermissionDenied){t.Fatalf("expected permission denied, got %v",err)}}
+func TestORCH002BudgetReservedBeforeChildReady(t *testing.T){h:=newHarness(t,defaultPolicy());before,_:=h.store.Account(h.ctx,h.root.AgentID);out:=spawn(t,h,h.root.AgentID,"inspect auth");if out.Child.Status!=process.StatusReady{t.Fatalf("child status = %s",out.Child.Status)};after,_:=h.store.Account(h.ctx,h.root.AgentID);if after.Available.Tokens!=before.Available.Tokens-1000||after.Reserved.Tokens!=1000{t.Fatalf("reservation not durable: before=%+v after=%+v",before,after)}}
+func TestORCH003ThousandSleepingChildrenDoNotCreateResidentGoroutines(t *testing.T){policy:=defaultPolicy();policy.MaxTotalDescendants=1200;policy.MaxChildrenPerNode=1200;h:=newHarness(t,policy);baseline:=runtime.NumGoroutine();for i:=0;i<1000;i++{child,err:=h.processes.CreateDelegatedChild(h.ctx,h.root.AgentID,"sleeping child",process.CommandMeta{});if err!=nil{t.Fatal(err)};running:=activate(t,h,child.AgentID);expected:=running.Version;if _,err:=h.processes.Sleep(h.ctx,child.AgentID,&expected,h.clock.Now().Add(time.Hour),process.CommandMeta{});err!=nil{t.Fatal(err)}};if delta:=runtime.NumGoroutine()-baseline;delta>20{t.Fatalf("1000 sleeping children created %d resident goroutines",delta)}}
+func TestORCH004MessageIDIdempotent(t *testing.T){h:=newHarness(t,defaultPolicy());child:=spawn(t,h,h.root.AgentID,"child");messageID,_:=h.ids.Message();msg:=orchestration.AgentMessage{ID:messageID,From:h.root.AgentID,To:child.Child.AgentID,Type:orchestration.MessageRequest,Inline:"hello"};_,inserted,err:=h.orchestrator.Send(h.ctx,msg);if err!=nil||!inserted{t.Fatalf("first send: inserted=%v err=%v",inserted,err)};_,inserted,err=h.orchestrator.Send(h.ctx,msg);if err!=nil||inserted{t.Fatalf("duplicate send: inserted=%v err=%v",inserted,err)}}
+func TestORCH005MailboxBackpressureBounded(t *testing.T){policy:=defaultPolicy();policy.MailboxMessages=2;policy.MailboxBytes=32;h:=newHarness(t,policy);child:=spawn(t,h,h.root.AgentID,"child");for i:=0;i<2;i++{if _,_,err:=h.orchestrator.Send(h.ctx,orchestration.AgentMessage{From:h.root.AgentID,To:child.Child.AgentID,Type:orchestration.MessageStatus,Inline:"12345678"});err!=nil{t.Fatal(err)}};_,_,err:=h.orchestrator.Send(h.ctx,orchestration.AgentMessage{From:h.root.AgentID,To:child.Child.AgentID,Type:orchestration.MessageStatus,Inline:"overflow"});if !errs.IsCode(err,errs.CodeResourceExhausted){t.Fatalf("expected mailbox backpressure, got %v",err)};messages,err:=h.orchestrator.Mailbox(h.ctx,child.Child.AgentID,100);if err!=nil{t.Fatal(err)};if len(messages)!=2{t.Fatalf("mailbox grew to %d",len(messages))}}
+func TestORCH006WaitCycleRejectedBeforeCommit(t *testing.T){h:=newHarness(t,defaultPolicy());a:=spawn(t,h,h.root.AgentID,"a");b:=spawn(t,h,h.root.AgentID,"b");activate(t,h,a.Child.AgentID);if _,_,err:=h.orchestrator.WaitFor(h.ctx,a.Child.AgentID,[]id.AgentID{b.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureCollectAll);err!=nil{t.Fatal(err)};activate(t,h,b.Child.AgentID);_,_,err:=h.orchestrator.WaitFor(h.ctx,b.Child.AgentID,[]id.AgentID{a.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureCollectAll);if !errs.IsCode(err,errs.CodeConflict){t.Fatalf("expected wait cycle conflict, got %v",err)};edges,err:=h.store.WaitEdges(h.ctx,b.Child.AgentID);if err!=nil{t.Fatal(err)};if len(edges)!=0{t.Fatalf("cycle edge was committed: %v",edges)}}
+func TestORCH007CancelTreeIdempotent(t *testing.T){h:=newHarness(t,defaultPolicy());a:=spawn(t,h,h.root.AgentID,"a");b:=spawn(t,h,a.Child.AgentID,"b");if err:=h.orchestrator.CancelTree(h.ctx,h.root.AgentID,"stop");err!=nil{t.Fatal(err)};if err:=h.orchestrator.CancelTree(h.ctx,h.root.AgentID,"stop again");err!=nil{t.Fatal(err)};for _,agentID:=range []id.AgentID{h.root.AgentID,a.Child.AgentID,b.Child.AgentID}{state,err:=h.processes.Inspect(h.ctx,agentID);if err!=nil{t.Fatal(err)};if state.Status!=process.StatusCancelled{t.Fatalf("%s status=%s",agentID,state.Status)}}}
+func TestORCH008LargeResultRemainsObjectReferenced(t *testing.T){h:=newHarness(t,defaultPolicy());out:=spawn(t,h,h.root.AgentID,"large result");objects,err:=objectstore.New(t.TempDir()+"/objects");if err!=nil{t.Fatal(err)};meta,err:=objects.Put(h.ctx,strings.NewReader(strings.Repeat("x",128<<10)));if err!=nil{t.Fatal(err)};complete(t,h,out.Child.AgentID);if err:=h.orchestrator.Settle(h.ctx,out.Spawn.ID,orchestration.Budget{Tokens:100},orchestration.ChildResult{Summary:"bounded summary",ArtifactRef:meta.Ref});err!=nil{t.Fatal(err)};result,ok,err:=h.store.Result(h.ctx,out.Child.AgentID);if err!=nil||!ok{t.Fatalf("result err=%v ok=%v",err,ok)};if result.ArtifactRef==""||len(result.Summary)>1024{t.Fatalf("result not object referenced: %+v",result)}}
+func TestORCH009FanoutLimitDeterministic(t *testing.T){policy:=defaultPolicy();policy.MaxChildrenPerNode=2;h:=newHarness(t,policy);spawn(t,h,h.root.AgentID,"one");spawn(t,h,h.root.AgentID,"two");_,err:=h.orchestrator.Spawn(h.ctx,orchestration.SpawnSpec{ParentAgentID:h.root.AgentID,TaskIntent:"three",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:1}});if !errs.IsCode(err,errs.CodeResourceExhausted){t.Fatalf("expected fanout limit, got %v",err)}}
+func TestORCH010ParentWaitSurvivesStoreReopen(t *testing.T){ctx:=context.Background();dir:=t.TempDir();clk:=clock.NewFakeClock(time.Date(2026,8,28,21,0,0,0,time.UTC));ids:=id.NewGenerator();store,err:=sqlite.Open(ctx,sqlite.Config{Path:dir+"/runtime.db",Clock:clk});if err!=nil{t.Fatal(err)};processes:=process.NewService(store,ids,clk);root,err:=processes.CreateRoot(ctx,"root",process.CommandMeta{});if err!=nil{t.Fatal(err)};svc,_:=orchestration.New(store,processes,ids,clk);if err:=svc.BootstrapRoot(ctx,root.AgentID,defaultPolicy());err!=nil{t.Fatal(err)};out,err:=svc.Spawn(ctx,orchestration.SpawnSpec{ParentAgentID:root.AgentID,TaskIntent:"child",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:100}});if err!=nil{t.Fatal(err)};expected:=root.Version;if _,err:=processes.Activate(ctx,root.AgentID,id.RuntimeInstanceID("run_wait"),&expected,process.CommandMeta{});err!=nil{t.Fatal(err)};wait,_,err:=svc.WaitFor(ctx,root.AgentID,[]id.AgentID{out.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureCollectAll);if err!=nil{t.Fatal(err)};_ = store.Close();store,err=sqlite.Open(ctx,sqlite.Config{Path:dir+"/runtime.db",Clock:clk});if err!=nil{t.Fatal(err)};defer store.Close();waits,err:=store.WaitsForChild(ctx,out.Child.AgentID);if err!=nil{t.Fatal(err)};if len(waits)!=1||waits[0].ID!=wait.ID{t.Fatalf("wait not recovered: %+v",waits)}}
+func TestORCH011FailFastWaitCompletesOnFailedChild(t *testing.T){h:=newHarness(t,defaultPolicy());out:=spawn(t,h,h.root.AgentID,"child");activate(t,h,h.root.AgentID);wait,_,err:=h.orchestrator.WaitFor(h.ctx,h.root.AgentID,[]id.AgentID{out.Child.AgentID},orchestration.WaitAll,0,orchestration.FailureFailFast);if err!=nil{t.Fatal(err)};child:=activate(t,h,out.Child.AgentID);expected:=child.Version;if _,err:=h.processes.Fail(h.ctx,child.AgentID,&expected,process.Failure{Code:"test",Message:"failed"},process.CommandMeta{});err!=nil{t.Fatal(err)};done,err:=h.orchestrator.EvaluateWait(h.ctx,wait);if err!=nil{t.Fatal(err)};if !done{t.Fatal("fail-fast wait did not complete")}}
+func TestORCH014FairAdmissionAcrossRoots(t *testing.T){h:=newHarness(t,defaultPolicy());root2,err:=h.processes.CreateRoot(h.ctx,"root2",process.CommandMeta{});if err!=nil{t.Fatal(err)};if err:=h.orchestrator.BootstrapRoot(h.ctx,root2.AgentID,defaultPolicy());err!=nil{t.Fatal(err)};for i:=0;i<3;i++{spawn(t,h,h.root.AgentID,"storm")};spawn(t,h,root2.AgentID,"other root");admitted,err:=h.orchestrator.AdmitFair(h.ctx,2);if err!=nil{t.Fatal(err)};if len(admitted)!=2{t.Fatalf("admitted=%d",len(admitted))};if admitted[0].RootID==admitted[1].RootID{t.Fatalf("one root starved the other: %+v",admitted)}}
+func TestORCH015CompletedDuplicateReuseIsExplicit(t *testing.T){h:=newHarness(t,defaultPolicy());spec:=orchestration.SpawnSpec{ParentAgentID:h.root.AgentID,TaskIntent:"same task",Authority:[]orchestration.CapabilityGrant{{Domain:"filesystem.read",Scope:"workspace/src"}},Budget:orchestration.Budget{Tokens:1000},ReuseCompleted:true};first,err:=h.orchestrator.Spawn(h.ctx,spec);if err!=nil{t.Fatal(err)};complete(t,h,first.Child.AgentID);if err:=h.orchestrator.Settle(h.ctx,first.Spawn.ID,orchestration.Budget{Tokens:100},orchestration.ChildResult{Summary:"done"});err!=nil{t.Fatal(err)};second,err:=h.orchestrator.Spawn(h.ctx,spec);if err!=nil{t.Fatal(err)};if !second.Reused||second.Child.AgentID!=first.Child.AgentID{t.Fatalf("completed task not reused: %+v",second)};spec.IndependentVerification=true;third,err:=h.orchestrator.Spawn(h.ctx,spec);if err!=nil{t.Fatal(err)};if third.Reused||third.Child.AgentID==first.Child.AgentID{t.Fatal("independent verification was deduplicated")}}
