@@ -16,6 +16,7 @@ import (
 	"github.com/Methamorphe/go-agent/internal/id"
 	"github.com/Methamorphe/go-agent/internal/mmu"
 	"github.com/Methamorphe/go-agent/internal/objectstore"
+	"github.com/Methamorphe/go-agent/internal/orchestration"
 	agentprocess "github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/storage/sqlite"
 	"github.com/Methamorphe/go-agent/internal/supervisor"
@@ -78,6 +79,10 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("initialize cognitive MMU: %w", err)
 	}
+	orchestrator, err := orchestration.New(store, processes, ids, a.clock)
+	if err != nil {
+		return fmt.Errorf("initialize recursive orchestration: %w", err)
+	}
 	agentRunner := agent.NewG4(a.logger, processes, objects, ids, runtimeID, memory)
 	processSupervisor := supervisor.New(a.logger, processes, a.clock, runtimeID)
 
@@ -110,7 +115,8 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	baseHandler := newControlHandler(store, processes, a.clock.Now)
-	handler := newG2ControlHandler(baseHandler, agentRunner)
+	orchestrationHandler := newG5ControlHandler(baseHandler, orchestrator)
+	handler := newG2ControlHandler(orchestrationHandler, agentRunner)
 	server := control.NewServer(a.logger, handler, a.cfg.MaxFrameBytes, a.cfg.MaxControlConnections)
 
 	runtimeCtx, cancelRuntime := context.WithCancel(ctx)
