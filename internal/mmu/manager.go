@@ -38,6 +38,10 @@ type Manager struct {
 }
 
 func New(repo Repository, objects ObjectStore, ids IDGenerator, source clock.Clock, cfg Config) (*Manager, error) {
+	return NewWithEstimator(repo, objects, ids, source, cfg, nil)
+}
+
+func NewWithEstimator(repo Repository, objects ObjectStore, ids IDGenerator, source clock.Clock, cfg Config, estimator TokenEstimator) (*Manager, error) {
 	if repo == nil {
 		return nil, errs.New(errs.CodeInvalidArgument, "mmu.new", "repository is required")
 	}
@@ -50,6 +54,9 @@ func New(repo Repository, objects ObjectStore, ids IDGenerator, source clock.Clo
 	if source == nil {
 		source = clock.NewSystemClock()
 	}
+	if estimator == nil {
+		estimator = ConservativeEstimator{}
+	}
 	cfg = normalizeConfig(cfg)
 
 	return &Manager{
@@ -58,7 +65,7 @@ func New(repo Repository, objects ObjectStore, ids IDGenerator, source clock.Clo
 		ids:            ids,
 		clock:          source,
 		cfg:            cfg,
-		estimator:      newCachedEstimator(ConservativeEstimator{}, cfg.MaxTokenCacheEntries),
+		estimator:      newCachedEstimator(estimator, cfg.MaxTokenCacheEntries),
 		recallTrackers: make(map[id.AgentID]recallTracker),
 	}, nil
 }
@@ -161,6 +168,26 @@ func (m *Manager) CreatePage(ctx context.Context, input PageInput) (PageMeta, er
 		return PageMeta{}, err
 	}
 	return meta, nil
+}
+
+func (m *Manager) Supersede(ctx context.Context, agentID id.AgentID, oldID, newID id.ContextPageID) error {
+	if agentID == "" || oldID == "" || newID == "" {
+		return errs.New(errs.CodeInvalidArgument, "mmu.supersede", "agent id and both page ids are required")
+	}
+	if oldID == newID {
+		return errs.New(errs.CodeInvalidArgument, "mmu.supersede", "a page cannot supersede itself")
+	}
+	oldMeta, err := m.repo.ContextPage(ctx, agentID, oldID)
+	if err != nil {
+		return err
+	}
+	if _, err := m.repo.ContextPage(ctx, agentID, newID); err != nil {
+		return err
+	}
+	if oldMeta.SupersededBy != nil {
+		return errs.New(errs.CodeConflict, "mmu.supersede", "page is already superseded")
+	}
+	return m.repo.MarkContextPageSuperseded(ctx, agentID, oldID, newID)
 }
 
 func (m *Manager) Recall(ctx context.Context, request RecallRequest) (RecallResult, error) {
@@ -371,6 +398,20 @@ func (m *Manager) Build(ctx context.Context, request BuildRequest) (WorkingSet, 
 		}
 	}
 
+	pinned, err := m.repo.PinnedContextPages(ctx, request.AgentID, request.AllowedScopes, now)
+	if err != nil {
+		return WorkingSet{}, err
+	}
+	for _, meta := range pinned {
+		if meta.SupersededBy != nil {
+			excluded = append(excluded, ManifestExclusion{ID: meta.ID, Reason: "superseded_pin"})
+			continue
+		}
+		if err := add(meta, 0, 0, RankingComponents{}, "pinned_until", true); err != nil {
+			return WorkingSet{}, err
+		}
+	}
+
 	for _, pageID := range request.ActiveIDs {
 		meta, err := m.repo.ContextPage(ctx, request.AgentID, pageID)
 		if err != nil {
@@ -455,8 +496,54 @@ func (m *Manager) Build(ctx context.Context, request BuildRequest) (WorkingSet, 
 		}
 		return rankedCandidates[i].candidate.Meta.ID < rankedCandidates[j].candidate.Meta.ID
 	})
+
+	// Preserve ranking while preventing one noisy source or one page type from
+	// monopolizing the first-pass packing. Deferred pages remain eligible if
+	// budget is still available.
+	diverse := make([]rankedCandidate, 0, len(rankedCandidates))
+	deferred := make([]rankedCandidate, 0)
+	sourceCount := make(map[string]int)
+	typeCount := make(map[PageType]int)
 	for _, candidate := range rankedCandidates {
+		source := candidate.candidate.Meta.SourceRef
+		pageType := candidate.candidate.Meta.Type
+		if (source != "" && sourceCount[source] >= 2) || typeCount[pageType] >= 4 {
+			deferred = append(deferred, candidate)
+			continue
+		}
+		diverse = append(diverse, candidate)
+		if source != "" {
+			sourceCount[source]++
+		}
+		typeCount[pageType]++
+	}
+	diverse = append(diverse, deferred...)
+	for _, candidate := range diverse {
 		if err := add(candidate.candidate.Meta, 3, candidate.score, candidate.components, "deterministic_rank", false); err != nil {
+			return WorkingSet{}, err
+		}
+	}
+
+	// Tier 4 preserves a small amount of recent continuity when relevance did
+	// not consume the whole budget. It is deliberately attempted after all
+	// stronger tiers and is never a correctness dependency.
+	recent, err := m.repo.SearchContextPages(ctx, CandidateQuery{
+		AgentID: request.AgentID,
+		Scopes:  request.AllowedScopes,
+		Limit:   m.cfg.CandidateLimit,
+	})
+	if err != nil {
+		return WorkingSet{}, err
+	}
+	for _, candidate := range recent {
+		if _, ok := selectedIDs[candidate.Meta.ID]; ok {
+			continue
+		}
+		if candidate.Meta.SupersededBy != nil || candidate.Meta.CompactedBy != nil {
+			continue
+		}
+		components := m.rank(candidate.Meta, 0, 0, now)
+		if err := add(candidate.Meta, 4, m.weightedScore(components), components, "recent_continuity", false); err != nil {
 			return WorkingSet{}, err
 		}
 	}
@@ -773,7 +860,7 @@ func normalizeBudget(b Budget) Budget {
 
 func validScope(scope Scope) bool {
 	switch scope {
-	case ScopeProcess, ScopeRootTask, ScopeProject, ScopeWorkspace, ScopeWorld:
+	case ScopeProcess, ScopeRootTask, ScopeProject, ScopeWorkspace, ScopeUser, ScopeWorld:
 		return true
 	default:
 		return false
