@@ -158,3 +158,12 @@ func (g *Generator) Checkpoint() (CheckpointID, error) {
 
 	return CheckpointID(value), nil
 }
+
+func (g *Generator) ContextPage() (ContextPageID, error) {
+	value, err := g.generate("ctx")
+	if err != nil {
+		return "", err
+	}
+
+	return ContextPageID(value), nil
+}

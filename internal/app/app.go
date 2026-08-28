@@ -14,6 +14,7 @@ import (
 	"github.com/Methamorphe/go-agent/internal/control"
 	"github.com/Methamorphe/go-agent/internal/diag"
 	"github.com/Methamorphe/go-agent/internal/id"
+	"github.com/Methamorphe/go-agent/internal/mmu"
 	"github.com/Methamorphe/go-agent/internal/objectstore"
 	agentprocess "github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/storage/sqlite"
@@ -73,7 +74,11 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	processes := agentprocess.NewService(store, ids, a.clock)
-	agentRunner := agent.New(a.logger, processes, objects, ids, runtimeID)
+	memory, err := mmu.New(store, objects, ids, a.clock, mmu.DefaultConfig())
+	if err != nil {
+		return fmt.Errorf("initialize cognitive MMU: %w", err)
+	}
+	agentRunner := agent.NewG4(a.logger, processes, objects, ids, runtimeID, memory)
 	processSupervisor := supervisor.New(a.logger, processes, a.clock, runtimeID)
 
 	// Recovery completes before the daemon accepts control requests.
