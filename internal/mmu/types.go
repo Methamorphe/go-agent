@@ -45,6 +45,7 @@ const (
 	ScopeRootTask  Scope = "root_task"
 	ScopeProject   Scope = "project"
 	ScopeWorkspace Scope = "workspace"
+	ScopeUser      Scope = "user"
 	ScopeWorld     Scope = "world"
 )
 
@@ -261,7 +262,9 @@ type Repository interface {
 	PutContextPage(context.Context, PageMeta, string) error
 	ContextPage(context.Context, id.AgentID, id.ContextPageID) (PageMeta, error)
 	SearchContextPages(context.Context, CandidateQuery) ([]Candidate, error)
+	PinnedContextPages(context.Context, id.AgentID, []Scope, time.Time) ([]PageMeta, error)
 	TouchContextPages(context.Context, id.AgentID, []id.ContextPageID, time.Time) error
+	MarkContextPageSuperseded(context.Context, id.AgentID, id.ContextPageID, id.ContextPageID) error
 	MarkContextPagesCompacted(context.Context, id.AgentID, []id.ContextPageID, id.ContextPageID) error
 	PutContextLease(context.Context, ContextLease) error
 	ActiveContextLeases(context.Context, id.AgentID, time.Time) ([]ContextLease, error)
