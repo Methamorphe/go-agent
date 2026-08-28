@@ -9,13 +9,31 @@ G1  COMPLETE
 G2  COMPLETE
 G3  COMPLETE
 G4  COMPLETE
-G5  READY
+G5  COMPLETE
+G6  READY
 ```
 
 ## Current generation
 
-**G5 — Recursive Agent Processes: READY.**
+**G5 — Recursive Agent Processes: COMPLETE.**
 
-G4 — Cognitive MMU v0 was merged into `main` through PR #1 as commit `25c5e6c0dfa5bc97166532d29d811d1d22ffad2c` and is closed in `G4_EXIT_REVIEW.md`.
+G5 implements durable recursive Agent Processes with delegated Task Intent, authority subsets, hierarchical budget reservation/settlement, bounded durable mailboxes, restart-safe waits, wait-cycle detection, cancellation propagation, fan-out/depth/parallelism controls, fair admission, explicit completed-work reuse and structured evidence-oriented result contracts.
 
-The project owner explicitly deferred the final G4 test/CI/race validation pass. Validation debt remains recorded in the G4 exit review and does not block G5 implementation.
+The G5 killer scenario proves three delegated repository investigators survive durable-store reopen while the parent is waiting and return bounded structured results/evidence without importing whole child transcripts.
+
+Validation run `33214615854` passed:
+
+```text
+test (ubuntu-latest)  ✅
+test (macos-latest)   ✅
+test (windows-latest) ✅
+race                   ✅
+```
+
+See `G5_EXIT_REVIEW.md`.
+
+## Next generation
+
+**G6 — Cognitive Scheduler v0: READY.**
+
+G6 can now build model/resource scheduling on top of durable processes, bounded context, controlled Worlds and recursive orchestration without changing G5 semantics.
