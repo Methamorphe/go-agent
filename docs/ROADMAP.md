@@ -10,13 +10,14 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is ready.**
 
 See:
 
 - `A0_EXIT_REVIEW.md`;
 - `G0_EXIT_REVIEW.md`;
 - `G2_EXIT_REVIEW.md`;
+- `G3_EXIT_REVIEW.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
 - `FOUNDATION_TECHNICAL_DECISIONS.md`.
@@ -328,7 +329,7 @@ See `G2_EXIT_REVIEW.md`.
 
 ---
 
-# G3 — Worlds + Authority + Effect System ✅ READY
+# G3 — Worlds + Authority + Effect System ✅ COMPLETE
 
 ## Goal
 
@@ -385,9 +386,31 @@ plus traits such as idempotency/retryability.
 - model cannot downgrade Effect classification;
 - every security decision is causally visible.
 
+## G3 result
+
+**PASS.**
+
+Implemented on August 28, 2026 with:
+
+- typed World action/result/Profile contracts;
+- `LocalWorld` filesystem and process actions confined to a workspace root;
+- Unix process-group cancellation and Windows process-tree termination;
+- filesystem read/write, process execution and network capability domains;
+- scoped grants, leases and delegation-subset validation;
+- canonical Effect classification with idempotency/retryability traits;
+- versioned Intent policy with allowed/forbidden domains;
+- Purpose-Carrying Actions and kernel-generated Action Proofs;
+- typed authorization decisions and a security-decision sink;
+- `SecureWorld` authorization gate that refuses denied actions before World execution;
+- deterministic tests proving all G3 authority killer cases.
+
+Validation run `33203489779` covers `go test ./...`, `go vet ./...`, both binaries on Ubuntu/macOS/Windows, and `go test -race ./...`.
+
+See `G3_EXIT_REVIEW.md`.
+
 ---
 
-# G4 — Cognitive MMU v0
+# G4 — Cognitive MMU v0 ✅ READY
 
 ## Goal
 
@@ -750,16 +773,17 @@ Real-model tests evaluate harness/model quality separately.
 
 # Immediate next step
 
-**G3 — Worlds + Authority + Effect System is READY.**
+**G4 — Cognitive MMU v0 is READY.**
 
-Build the formal execution-security boundary on top of G2 with:
+Build bounded, provider-independent cognitive memory on top of the durable process, World and authority foundations with:
 
-- `LocalWorld` and typed action/result protocol;
-- explicit World capability descriptors;
-- filesystem/process abstractions and process-tree cancellation;
-- capability grants/scopes/leases;
-- Effect classification and retry/certainty traits;
-- Intent-Based Authority checks and Action Proofs;
-- deterministic denial tests proving unauthorized model requests never reach the World.
+- semantic Context Pages backed by persisted metadata and Object Store bodies;
+- deterministic token estimation and hard working-set budgets;
+- tiered working-set construction instead of replaying canonical conversation history;
+- explicit `recall()` with relevance/evidence references;
+- a Context Manifest recording exactly what was supplied to each invocation;
+- structured compaction that preserves semantic/evidence references;
+- bounded page-body caching and eviction;
+- stress tests proving a 100k-page corpus does not materialize all bodies and hot memory remains bounded.
 
-G3 must preserve the G2 provider/syscall/event streaming boundaries while moving execution from the deliberately narrow G2 dispatcher behind a formally authorized World boundary.
+G4 must preserve G3 authority boundaries: recalled content is information, never authority, and context/prompt content cannot mint capabilities or alter canonical Effect classification.
