@@ -10,7 +10,10 @@ import (
 	"github.com/Methamorphe/go-agent/internal/clock"
 	"github.com/Methamorphe/go-agent/internal/config"
 	"github.com/Methamorphe/go-agent/internal/errs"
+	"github.com/Methamorphe/go-agent/internal/id"
 	"github.com/Methamorphe/go-agent/internal/invocation"
+	"github.com/Methamorphe/go-agent/internal/mmu"
+	"github.com/Methamorphe/go-agent/internal/objectstore"
 	"github.com/Methamorphe/go-agent/internal/provider"
 	"github.com/Methamorphe/go-agent/internal/scheduler"
 )
@@ -95,4 +98,35 @@ func buildG6Scheduler(cfg config.SchedulerConfig, source clock.Clock) (*schedule
 	runnerCfg.ModelMaxContext = maxContext
 	runnerCfg.ReservedOutputTokens = cfg.ReservedOutputTokens
 	return runtime, newConfiguredBackendResolver(cfg), runnerCfg, nil
+}
+
+func buildAgentRunner(
+	logger agent.G4Logger,
+	cfg config.Config,
+	processes agent.ProcessAPI,
+	objects *objectstore.Store,
+	ids agent.G4IDGenerator,
+	runtimeID id.RuntimeInstanceID,
+	memory *mmu.Manager,
+	source clock.Clock,
+) (*agent.G4Runner, error) {
+	if !cfg.Scheduler.Enabled {
+		return agent.NewG4(logger, processes, objects, ids, runtimeID, memory), nil
+	}
+	runtime, resolver, runnerCfg, err := buildG6Scheduler(cfg.Scheduler, source)
+	if err != nil {
+		return nil, err
+	}
+	return agent.NewG6(
+		logger,
+		processes,
+		objects,
+		ids,
+		runtimeID,
+		memory,
+		runnerCfg,
+		runtime,
+		resolver,
+		cfg.Scheduler.DefaultRootBudget,
+	)
 }
