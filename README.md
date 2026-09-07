@@ -16,10 +16,11 @@ G2  Minimal Agent Loop + Agent Syscalls       COMPLETE
 G3  Worlds + Authority + Effect System        COMPLETE
 G4  Cognitive MMU v0                          COMPLETE
 G5  Recursive Agent Processes                 COMPLETE
-G6  Cognitive Scheduler v0                    READY
+G6  Cognitive Scheduler v0                    COMPLETE
+G7  Workspace/OCI World + Agent Transactions  READY
 ```
 
-G5 is closed and validated. The current integrated `main` head containing G0–G5 passed cross-platform tests/vet/builds and the race detector. The next implementation generation is **G6 — Cognitive Scheduler v0**.
+G6 is closed and validated. The integrated G0–G6 runtime passes cross-platform tests/vet/builds and the race detector, including restart-safe SQLite scheduler budget accounting. The next implementation generation is **G7 — Workspace/OCI World + Agent Transactions**.
 
 See [Current Generation](docs/CURRENT_GENERATION.md), the generation exit reviews, and the [Implementation Roadmap](docs/ROADMAP.md).
 
@@ -159,6 +160,8 @@ The architecture currently defines these primitives:
 - [G3 Exit Review — Worlds + Authority + Effect System](docs/G3_EXIT_REVIEW.md)
 - [G4 Exit Review — Cognitive MMU v0](docs/G4_EXIT_REVIEW.md)
 - [G5 Exit Review — Recursive Agent Processes](docs/G5_EXIT_REVIEW.md)
+- [G6 Exit Review — Cognitive Scheduler v0](docs/G6_EXIT_REVIEW.md)
+- [Cognitive Scheduler v0 runtime configuration](docs/COGNITIVE_SCHEDULER_V0.md)
 - [Long-duration benchmark suite](docs/LONG_DURATION_BENCHMARKS.md)
 - [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
 - [Canonical concept status registry](docs/CONCEPT_STATUS.md)
@@ -228,11 +231,11 @@ centralized durable timers
 explicit concurrency/resource budgets
 ```
 
-The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic large histories. The first executable long-duration baseline now covers real SQLite reopen/checkpoint durability and Cognitive MMU boundedness against a persisted large corpus; representative 1h/8h/24h runs are still empirical validation work.
+The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic large histories. The executable long-duration baseline covers real SQLite reopen/checkpoint durability, Cognitive MMU boundedness against a persisted large corpus, and restart-safe scheduler budget accounting; representative 1h/8h/24h runs remain empirical validation work.
 
 ## Implemented runtime baseline
 
-The current G0–G5 implementation includes:
+The current G0–G6 implementation includes:
 
 ```text
 Go kernel
@@ -248,6 +251,7 @@ Agent Syscalls
 LocalWorld + authority/effect gate
 Cognitive MMU v0
 Recursive Agent Processes + hierarchical budgets
+Cognitive Scheduler v0 + durable root model budgets
 ```
 
 ## Scope
@@ -279,9 +283,9 @@ Recursive Agent Processes + hierarchical budgets
 
 ## Status
 
-**A0–G5 complete. G6 — Cognitive Scheduler v0 ready.**
+**A0–G6 complete. G7 — Workspace/OCI World + Agent Transactions ready.**
 
-The next implementation step is to stop binding an Agent Process to one model and route each Cognitive Task through deterministic hard eligibility, budget, health, locality/privacy and cost/latency/quality policy.
+The next implementation step is to add isolated Workspace/OCI Worlds and transaction boundaries so speculative work can be verified, committed, rolled back or reconciled without weakening the durable process, authority, MMU, orchestration or scheduler semantics already established.
 
 ## Naming
 
