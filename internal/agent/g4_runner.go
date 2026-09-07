@@ -18,6 +18,7 @@ import (
 	"github.com/Methamorphe/go-agent/internal/objectstore"
 	"github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/provider"
+	"github.com/Methamorphe/go-agent/internal/scheduler"
 )
 
 const (
@@ -204,12 +205,10 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 		var invokeErr error
 		if r.g6 != nil {
 			task := r.g6.cognitiveTask(request, state, correlationID, step, manifest, r.cfg.ReservedOutputTokens)
-			var decisionModel string
-			outcome, nextState, decision, scheduledErr := r.g6.scheduled.Invoke(ctx, task, messages, tools, &expected, meta)
-			invokeErr = scheduledErr
+			var decision scheduler.RoutingDecision
+			outcome, nextState, decision, invokeErr = r.g6.scheduled.Invoke(ctx, task, messages, tools, &expected, meta)
 			if decision.Selected.ModelID != "" {
-				decisionModel = string(decision.Selected.ModelID)
-				manifest.Model = decisionModel
+				manifest.Model = string(decision.Selected.ModelID)
 			}
 		} else {
 			outcome, nextState, invokeErr = invocations.Invoke(ctx, model, request.AgentID, request.Model, messages, tools, &expected, meta)
