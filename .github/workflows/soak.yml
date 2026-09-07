@@ -1,6 +1,13 @@
 name: long-duration-soak
 
 on:
+  pull_request:
+    paths:
+      - 'internal/mmu/**'
+      - 'internal/storage/sqlite/**'
+      - 'internal/soaktest/**'
+      - 'Makefile'
+      - '.github/workflows/soak.yml'
   workflow_dispatch:
     inputs:
       duration:
@@ -54,12 +61,12 @@ jobs:
 
       - name: Run tagged long-duration scenarios
         env:
-          SOAK_DURATION: ${{ inputs.duration }}
-          SOAK_INTERVAL: ${{ inputs.interval }}
-          SOAK_SAMPLE_INTERVAL: ${{ inputs.sample_interval }}
-          SOAK_MMU_CORPUS_PAGES: ${{ inputs.mmu_corpus_pages }}
-          SOAK_MAX_HEAP_GROWTH_MB: ${{ inputs.max_heap_growth_mb }}
-          SOAK_MAX_GOROUTINE_GROWTH: ${{ inputs.max_goroutine_growth }}
+          SOAK_DURATION: ${{ inputs.duration || '30s' }}
+          SOAK_INTERVAL: ${{ inputs.interval || '250ms' }}
+          SOAK_SAMPLE_INTERVAL: ${{ inputs.sample_interval || '5s' }}
+          SOAK_MMU_CORPUS_PAGES: ${{ inputs.mmu_corpus_pages || '10000' }}
+          SOAK_MAX_HEAP_GROWTH_MB: ${{ inputs.max_heap_growth_mb || '64' }}
+          SOAK_MAX_GOROUTINE_GROWTH: ${{ inputs.max_goroutine_growth || '16' }}
         run: >-
           go test -v -tags=soak -run '^TestSoak' -count=1 -timeout=350m
           ./internal/mmu ./internal/storage/sqlite
