@@ -82,13 +82,12 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("initialize recursive orchestration: %w", err)
 	}
-	agentRunner, err := buildAgentRunner(a.logger, a.cfg, processes, objects, ids, runtimeID, memory, a.clock)
+	agentRunner, err := buildAgentRunner(a.logger, a.cfg, processes, objects, ids, runtimeID, memory, a.clock, store)
 	if err != nil {
 		return fmt.Errorf("initialize cognitive scheduler: %w", err)
 	}
 	processSupervisor := supervisor.New(a.logger, processes, a.clock, runtimeID)
 
-	// Recovery completes before the daemon accepts control requests.
 	if err := processSupervisor.Recover(ctx); err != nil {
 		if ctx.Err() != nil {
 			a.logger.Info("runtime recovery cancelled", "reason", ctx.Err())
