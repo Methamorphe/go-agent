@@ -9,6 +9,7 @@ type ObservationKind string
 
 const (
 	ObservationSuccess          ObservationKind = "success"
+	ObservationCancelled        ObservationKind = "cancelled"
 	ObservationTransientFailure ObservationKind = "transient_failure"
 	ObservationRateLimited      ObservationKind = "rate_limited"
 	ObservationPermanentFailure ObservationKind = "permanent_failure"
@@ -96,7 +97,7 @@ func (t *Telemetry) Observe(ref ModelRef, kind ObservationKind, latency time.Dur
 		}
 	}
 	errSample := 0.0
-	if kind != ObservationSuccess {
+	if kind != ObservationSuccess && kind != ObservationCancelled {
 		errSample = 1
 	}
 	e.snap.ErrorEWMA = e.snap.ErrorEWMA*0.8 + errSample*0.2
@@ -108,6 +109,8 @@ func (t *Telemetry) Observe(ref ModelRef, kind ObservationKind, latency time.Dur
 			e.snap.State = HealthHealthy
 		}
 		e.snap.OpenUntil = time.Time{}
+	case ObservationCancelled:
+		// Caller cancellation is not evidence that the backend is unhealthy.
 	case ObservationRateLimited:
 		e.snap.ConsecutiveFailures++
 		e.snap.State = HealthRateLimited
