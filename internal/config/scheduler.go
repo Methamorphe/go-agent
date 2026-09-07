@@ -36,23 +36,25 @@ type SchedulerProfileConfig struct {
 }
 
 type SchedulerConfig struct {
-	Enabled            bool                      `json:"enabled"`
-	MaxProfiles        int                       `json:"max_profiles"`
-	GlobalSlots        int                       `json:"global_slots"`
-	PerRootSlots       int                       `json:"per_root_slots"`
-	PerProviderSlots   int                       `json:"per_provider_slots"`
-	DefaultRootBudget  scheduler.Resources       `json:"default_root_budget"`
-	Backends           []SchedulerBackendConfig  `json:"backends,omitempty"`
-	Profiles           []SchedulerProfileConfig  `json:"profiles,omitempty"`
+	Enabled              bool                     `json:"enabled"`
+	MaxProfiles          int                      `json:"max_profiles"`
+	GlobalSlots          int                      `json:"global_slots"`
+	PerRootSlots         int                      `json:"per_root_slots"`
+	PerProviderSlots     int                      `json:"per_provider_slots"`
+	ReservedOutputTokens int                      `json:"reserved_output_tokens"`
+	DefaultRootBudget    scheduler.Resources      `json:"default_root_budget"`
+	Backends             []SchedulerBackendConfig `json:"backends,omitempty"`
+	Profiles             []SchedulerProfileConfig `json:"profiles,omitempty"`
 }
 
 func DefaultSchedulerConfig() SchedulerConfig {
 	return SchedulerConfig{
-		Enabled:          false,
-		MaxProfiles:      scheduler.DefaultMaxProfiles,
-		GlobalSlots:      8,
-		PerRootSlots:     4,
-		PerProviderSlots: 8,
+		Enabled:              false,
+		MaxProfiles:          scheduler.DefaultMaxProfiles,
+		GlobalSlots:          8,
+		PerRootSlots:         4,
+		PerProviderSlots:     8,
+		ReservedOutputTokens: 4_096,
 	}
 }
 
@@ -68,6 +70,9 @@ func (c SchedulerConfig) Validate() error {
 	}
 	if c.PerProviderSlots <= 0 || c.PerProviderSlots > c.GlobalSlots {
 		return fmt.Errorf("scheduler.per_provider_slots must be between 1 and global_slots")
+	}
+	if c.ReservedOutputTokens <= 0 {
+		return fmt.Errorf("scheduler.reserved_output_tokens must be positive")
 	}
 	if !c.DefaultRootBudget.Valid() {
 		return fmt.Errorf("scheduler.default_root_budget contains negative values")
@@ -87,22 +92,23 @@ func (c SchedulerConfig) Validate() error {
 
 	backends := make(map[string]struct{}, len(c.Backends))
 	for i, backend := range c.Backends {
-		id := strings.TrimSpace(backend.ProviderID)
-		if id == "" {
+		providerID := strings.TrimSpace(backend.ProviderID)
+		if providerID == "" {
 			return fmt.Errorf("scheduler.backends[%d].provider_id is required", i)
 		}
-		if _, exists := backends[id]; exists {
-			return fmt.Errorf("scheduler backend %q is duplicated", id)
+		if _, exists := backends[providerID]; exists {
+			return fmt.Errorf("scheduler backend %q is duplicated", providerID)
 		}
 		switch backend.Type {
 		case "openai", "openai-compatible":
 		default:
-			return fmt.Errorf("scheduler backend %q has unsupported type %q", id, backend.Type)
+			return fmt.Errorf("scheduler backend %q has unsupported type %q", providerID, backend.Type)
 		}
-		backends[id] = struct{}{}
+		backends[providerID] = struct{}{}
 	}
 
 	profiles := make(map[string]struct{}, len(c.Profiles))
+	hasOutputCapacity := false
 	for i, raw := range c.Profiles {
 		if _, ok := backends[strings.TrimSpace(raw.ProviderID)]; !ok {
 			return fmt.Errorf("scheduler.profiles[%d] references unknown provider %q", i, raw.ProviderID)
@@ -111,11 +117,17 @@ func (c SchedulerConfig) Validate() error {
 		if err := profile.Validate(); err != nil {
 			return fmt.Errorf("scheduler.profiles[%d]: %w", i, err)
 		}
+		if profile.MaxOutputTokens >= c.ReservedOutputTokens {
+			hasOutputCapacity = true
+		}
 		key := profile.Key()
 		if _, exists := profiles[key]; exists {
 			return fmt.Errorf("scheduler profile %q is duplicated", key)
 		}
 		profiles[key] = struct{}{}
+	}
+	if !hasOutputCapacity {
+		return fmt.Errorf("scheduler has no profile supporting reserved_output_tokens=%d", c.ReservedOutputTokens)
 	}
 	return nil
 }
