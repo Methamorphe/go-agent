@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	EventCognitiveRoutingDecided ledger.EventType = "CognitiveRoutingDecided"
 	EventModelInvocationStarted   ledger.EventType = "ModelInvocationStarted"
 	EventModelInvocationCompleted ledger.EventType = "ModelInvocationCompleted"
 	EventModelInvocationFailed    ledger.EventType = "ModelInvocationFailed"
@@ -13,6 +14,18 @@ const (
 	EventSyscallCompleted         ledger.EventType = "SyscallCompleted"
 	EventSyscallFailed            ledger.EventType = "SyscallFailed"
 )
+
+type CognitiveRoutingDecidedPayload struct {
+	DecisionID           string `json:"decision_id"`
+	TaskID               string `json:"task_id"`
+	Provider             string `json:"provider"`
+	Model                string `json:"model"`
+	ProfileVersion       uint32 `json:"profile_version"`
+	DecisionRef          string `json:"decision_ref"`
+	ReservationID        string `json:"reservation_id"`
+	EstimatedMoneyMicros int64  `json:"estimated_money_micros"`
+	EstimatedTokens      int64  `json:"estimated_tokens"`
+}
 
 type ModelUsage struct {
 	InputTokens  *int64 `json:"input_tokens,omitempty"`
@@ -64,7 +77,8 @@ type SyscallFailedPayload struct {
 func validateOperationEvent(state State, event ledger.Event) (bool, error) {
 	if state.Status != StatusRunning {
 		switch event.Type {
-		case EventModelInvocationStarted,
+		case EventCognitiveRoutingDecided,
+			EventModelInvocationStarted,
 			EventModelInvocationCompleted,
 			EventModelInvocationFailed,
 			EventSyscallRequested,
@@ -77,6 +91,19 @@ func validateOperationEvent(state State, event ledger.Event) (bool, error) {
 	}
 
 	switch event.Type {
+	case EventCognitiveRoutingDecided:
+		payload, err := decodePayload[CognitiveRoutingDecidedPayload](event)
+		if err != nil {
+			return true, err
+		}
+		if payload.DecisionID == "" || payload.TaskID == "" || payload.Provider == "" || payload.Model == "" || payload.ProfileVersion == 0 || payload.DecisionRef == "" || payload.ReservationID == "" {
+			return true, impossible(event, "cognitive routing decision payload is incomplete")
+		}
+		if payload.EstimatedMoneyMicros < 0 || payload.EstimatedTokens < 0 {
+			return true, impossible(event, "cognitive routing estimate must be non-negative")
+		}
+		return true, nil
+
 	case EventModelInvocationStarted:
 		payload, err := decodePayload[ModelInvocationStartedPayload](event)
 		if err != nil {
