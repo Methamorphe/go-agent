@@ -8,13 +8,20 @@ The goal is not to build “another coding-agent CLI”, nor to port Prime Agent
 
 ## Current phase
 
-**A0 — Architecture & Semantics: COMPLETE. G0 — Foundations: COMPLETE. G1 — Durable Agent Process + Event Ledger: READY.**
+```text
+A0  Architecture & Semantics                  COMPLETE
+G0  Foundations                               COMPLETE
+G1  Durable Agent Process + Event Ledger      COMPLETE
+G2  Minimal Agent Loop + Agent Syscalls       COMPLETE
+G3  Worlds + Authority + Effect System        COMPLETE
+G4  Cognitive MMU v0                          COMPLETE
+G5  Recursive Agent Processes                 COMPLETE
+G6  Cognitive Scheduler v0                    READY
+```
 
-A0 closed the high-coupling runtime semantics. G0 has now implemented and validated the foundational runtime substrate: daemon lifecycle, typed primitives, configuration, SQLite/migrations, content-addressed Object Store, bounded local IPC, diagnostics and cross-platform CI.
+G5 is closed and validated. The current integrated `main` head containing G0–G5 passed cross-platform tests/vet/builds and the race detector. The next implementation generation is **G6 — Cognitive Scheduler v0**.
 
-See [A0 Exit Review](docs/A0_EXIT_REVIEW.md) and [G0 Exit Review](docs/G0_EXIT_REVIEW.md).
-
-The next implementation phase is **G1 — Durable Agent Process + Event Ledger**.
+See [Current Generation](docs/CURRENT_GENERATION.md), the generation exit reviews, and the [Implementation Roadmap](docs/ROADMAP.md).
 
 The runtime is explicitly designed for **long-lived stability**: agent history may grow for hours or days, but hot memory, active LLM context and terminal rendering work must remain bounded.
 
@@ -143,14 +150,22 @@ The architecture currently defines these primitives:
 
 ### Start here
 
+- [Current implementation generation](docs/CURRENT_GENERATION.md)
+- [Implementation roadmap](docs/ROADMAP.md)
 - [A0 Exit Review — architecture gate result](docs/A0_EXIT_REVIEW.md)
 - [G0 Exit Review — foundation gate result](docs/G0_EXIT_REVIEW.md)
+- [G1 Exit Review — Durable Agent Process + Event Ledger](docs/G1_EXIT_REVIEW.md)
+- [G2 Exit Review — Minimal Agent Loop + Agent Syscalls](docs/G2_EXIT_REVIEW.md)
+- [G3 Exit Review — Worlds + Authority + Effect System](docs/G3_EXIT_REVIEW.md)
+- [G4 Exit Review — Cognitive MMU v0](docs/G4_EXIT_REVIEW.md)
+- [G5 Exit Review — Recursive Agent Processes](docs/G5_EXIT_REVIEW.md)
+- [Long-duration benchmark suite](docs/LONG_DURATION_BENCHMARKS.md)
 - [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
 - [Canonical concept status registry](docs/CONCEPT_STATUS.md)
 - [Architecture gate](docs/ARCHITECTURE_GATE.md)
 - [Architecture decisions](docs/ARCHITECTURE_DECISIONS.md)
 - [Foundation technical decisions for G0](docs/FOUNDATION_TECHNICAL_DECISIONS.md)
-- [Original concept architecture checklist](docs/CONCEPT_CONTRACTS.md) — historical per-concept design notes; current status labels are superseded by `CONCEPT_STATUS.md` and the A0 Exit Review
+- [Original concept architecture checklist](docs/CONCEPT_CONTRACTS.md) — historical per-concept design notes; current status labels are superseded by `CONCEPT_STATUS.md` and the exit reviews
 - [Vision and product thesis](docs/VISION.md)
 - [Product and runtime requirements](docs/REQUIREMENTS.md)
 
@@ -186,6 +201,7 @@ The architecture currently defines these primitives:
 - [TUI, streaming, attach/detach and history virtualization](docs/TUI_AND_STREAMING.md)
 - [Local runtime control / IPC protocol](docs/LOCAL_CONTROL_PROTOCOL.md)
 - [Testing, benchmarks and quality gates](docs/TESTING_BENCHMARKS_AND_QUALITY_GATES.md)
+- [Executable long-duration benchmarks](docs/LONG_DURATION_BENCHMARKS.md)
 
 ### Research and roadmap
 
@@ -212,26 +228,27 @@ centralized durable timers
 explicit concurrency/resource budgets
 ```
 
-The anti-regression suite is designed around 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic 100k-message histories.
+The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic large histories. The first executable long-duration baseline now covers real SQLite reopen/checkpoint durability and Cognitive MMU boundedness against a persisted large corpus; representative 1h/8h/24h runs are still empirical validation work.
 
-## G0 foundation implementation
+## Implemented runtime baseline
 
-G0 implemented the accepted initial foundation baseline:
+The current G0–G5 implementation includes:
 
 ```text
 Go kernel
-modernc.org/sqlite behind adapter (provisional/benchmarked)
+modernc.org/sqlite behind internal adapter
 database/sql + explicit SQL
-SQLite WAL + reliability-first synchronous mode
+SQLite WAL + foreign_keys + reliability-first synchronous mode
 SHA-256 content-addressed Object Store
-Unix domain socket / Windows named pipe local IPC
-length-framed versioned JSON control messages
-bounded control concurrency
-structured diagnostics + pprof hooks
-cross-platform CI + race baseline
+Unix domain socket / Windows named pipe IPC
+length-framed versioned JSON control protocol
+Durable Agent Process + Event Ledger
+provider-neutral invocation layer + streaming
+Agent Syscalls
+LocalWorld + authority/effect gate
+Cognitive MMU v0
+Recursive Agent Processes + hierarchical budgets
 ```
-
-The semantic Event Ledger, Agent Process, snapshot/replay model and agent behavior begin in G1 and later generations.
 
 ## Scope
 
@@ -262,9 +279,9 @@ The semantic Event Ledger, Agent Process, snapshot/replay model and agent behavi
 
 ## Status
 
-**A0 complete. G0 complete. G1 ready.**
+**A0–G5 complete. G6 — Cognitive Scheduler v0 ready.**
 
-A0 produced the semantic contracts. G0 implemented and validated the runtime foundations. G1 now starts the first durable domain primitive: Agent Process + Event Ledger.
+The next implementation step is to stop binding an Agent Process to one model and route each Cognitive Task through deterministic hard eligibility, budget, health, locality/privacy and cost/latency/quality policy.
 
 ## Naming
 
