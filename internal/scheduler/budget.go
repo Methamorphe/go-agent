@@ -3,9 +3,10 @@ package scheduler
 import (
 	"errors"
 	"fmt"
-	"github.com/Methamorphe/go-agent/internal/id"
 	"sync"
 	"sync/atomic"
+
+	"github.com/Methamorphe/go-agent/internal/id"
 )
 
 type BudgetSnapshot struct {
@@ -14,6 +15,16 @@ type BudgetSnapshot struct {
 	Reserved  Resources `json:"reserved"`
 	Available Resources `json:"available"`
 }
+
+type BudgetStore interface {
+	SetLimit(id.AgentID, Resources) error
+	Snapshot(id.AgentID) BudgetSnapshot
+	Reserve(id.AgentID, Resources) (ReservationID, error)
+	Reservation(ReservationID) (Resources, bool)
+	Settle(ReservationID, Resources) error
+	Release(ReservationID) error
+}
+
 type budgetAccount struct{ limit, spent, reserved Resources }
 type reservation struct {
 	id      ReservationID
@@ -27,6 +38,8 @@ type BudgetLedger struct {
 	reservations map[ReservationID]*reservation
 	seq          atomic.Uint64
 }
+
+var _ BudgetStore = (*BudgetLedger)(nil)
 
 func NewBudgetLedger() *BudgetLedger {
 	return &BudgetLedger{accounts: make(map[id.AgentID]*budgetAccount), reservations: make(map[ReservationID]*reservation)}
