@@ -10,14 +10,19 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is ready.**
 
 See:
 
+- `CURRENT_GENERATION.md`;
 - `A0_EXIT_REVIEW.md`;
 - `G0_EXIT_REVIEW.md`;
+- `G1_EXIT_REVIEW.md`;
 - `G2_EXIT_REVIEW.md`;
 - `G3_EXIT_REVIEW.md`;
+- `G4_EXIT_REVIEW.md`;
+- `G5_EXIT_REVIEW.md`;
+- `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
 - `FOUNDATION_TECHNICAL_DECISIONS.md`.
@@ -151,9 +156,9 @@ race                   ✅
 
 The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-agent`; the race job passed `go test -race ./...`.
 
-The previously listed G0 criterion “snapshots are rebuildable from ledger” is correctly a **G1 criterion**: G0 intentionally contains no Event Ledger. G0 provides the persistence/recovery substrate on which G1 must prove deterministic snapshot + replay reconstruction.
+The previously listed G0 criterion “snapshots are rebuildable from ledger” is correctly a **G1 criterion**: G0 intentionally contains no Event Ledger. G0 provides the persistence/recovery substrate on which G1 proves deterministic snapshot + replay reconstruction.
 
-Longer SQLite driver soak/comparison and extended long-session stress remain empirical validation work inherited from A0; they do not reopen G0 semantics.
+Longer SQLite driver soak/comparison and extended long-session stress remain empirical validation work inherited from A0. An executable baseline now exists in `LONG_DURATION_BENCHMARKS.md`; representative reference runs remain pending.
 
 See `G0_EXIT_REVIEW.md`.
 
@@ -237,7 +242,7 @@ test (windows-latest) ✅
 race                   ✅
 ```
 
-The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-agent`; the race job passed `go test -race ./...`.
+See `G1_EXIT_REVIEW.md`.
 
 ---
 
@@ -410,7 +415,7 @@ See `G3_EXIT_REVIEW.md`.
 
 ---
 
-# G4 — Cognitive MMU v0 ✅ READY
+# G4 — Cognitive MMU v0 ✅ COMPLETE
 
 ## Goal
 
@@ -435,9 +440,19 @@ Stop treating conversation history as canonical memory.
 - 100k-page corpus does not materialize all bodies;
 - hot memory/context remains bounded as history grows.
 
+## G4 result
+
+**PASS.**
+
+G4 implements persisted semantic Context Pages, SQLite FTS retrieval, deterministic tiered working-set construction, explicit recall leases, Context Manifests, structured compaction, supersession handling, bounded token-estimate caching and lazy body materialization.
+
+The historical final CI/race pass deferred at G4 closure was later covered by the integrated G5/main validation. Long-duration empirical calibration now has an executable soak harness; reference 1h/8h/24h results remain pending.
+
+See `G4_EXIT_REVIEW.md` and `LONG_DURATION_BENCHMARKS.md`.
+
 ---
 
-# G5 — Recursive Agent Processes
+# G5 — Recursive Agent Processes ✅ COMPLETE
 
 ## Goal
 
@@ -459,9 +474,19 @@ Bring recursive-agent benefits into the durable process/security/economy model.
 
 Root delegates three repository investigations in parallel, survives daemon restart with child pending, and receives structured evidence without importing whole child transcripts.
 
+## G5 result
+
+**PASS.**
+
+G5 adds hierarchical budget reservation/settlement, durable bounded mailboxes, restart-safe parent waits, wait-cycle rejection, cancellation propagation, fan-out/depth/parallelism limits, fair per-root admission, result/evidence contracts and explicit completed-work reuse.
+
+The integrated G5 head passed cross-platform tests/vet/builds and the race detector.
+
+See `G5_EXIT_REVIEW.md`.
+
 ---
 
-# G6 — Cognitive Scheduler v0
+# G6 — Cognitive Scheduler v0 🟢 READY
 
 ## Goal
 
@@ -729,7 +754,7 @@ A feature is not done if happy path works but it leaks memory/goroutines, blocks
 
 # Product slices
 
-A credible first coding-agent experience may emerge around G5:
+A credible first coding-agent experience emerged around G5:
 
 ```text
 single Go binary distribution
@@ -737,14 +762,14 @@ local durable daemon
 attachable terminal
 persistent Agent Processes
 model streaming
-filesystem/shell/git actions
+filesystem/shell actions
 Event Ledger
 capabilities/effects/Intent
 bounded context
 recursive subagents
 ```
 
-But polish must not prevent progression toward G7–G10, where the strongest differentiation begins.
+But polish must not prevent progression toward G6–G10, where model scheduling, transactions/forks, epistemic memory and typed context faults deepen the differentiation.
 
 ---
 
@@ -769,21 +794,25 @@ Use deterministic fake providers and fake Worlds for:
 
 Real-model tests evaluate harness/model quality separately.
 
+Long-duration validation uses tagged provider-free soak scenarios and explicit boundedness criteria. See `LONG_DURATION_BENCHMARKS.md`.
+
 ---
 
 # Immediate next step
 
-**G4 — Cognitive MMU v0 is READY.**
+**G6 — Cognitive Scheduler v0 is READY.**
 
-Build bounded, provider-independent cognitive memory on top of the durable process, World and authority foundations with:
+Build per-Cognitive-Task model/resource scheduling on top of the durable process, MMU, authority and recursive-economy foundations with:
 
-- semantic Context Pages backed by persisted metadata and Object Store bodies;
-- deterministic token estimation and hard working-set budgets;
-- tiered working-set construction instead of replaying canonical conversation history;
-- explicit `recall()` with relevance/evidence references;
-- a Context Manifest recording exactly what was supplied to each invocation;
-- structured compaction that preserves semantic/evidence references;
-- bounded page-body caching and eviction;
-- stress tests proving a 100k-page corpus does not materialize all bodies and hot memory remains bounded.
+- a versioned model/backend registry and Profile;
+- explicit Cognitive Task descriptors separate from Agent identity;
+- hard privacy/locality/context/capability/quality eligibility before scoring;
+- deterministic quality/cost/latency/reliability scoring;
+- provider health and circuit-breaker state;
+- pessimistic budget reservation followed by exact settlement;
+- bounded fallback and retry/reroute semantics;
+- global/per-provider/per-root admission and fairness;
+- durable, explainable routing decision events and metrics;
+- evaluation against always-default, always-strongest and always-cheapest baselines.
 
-G4 must preserve G3 authority boundaries: recalled content is information, never authority, and context/prompt content cannot mint capabilities or alter canonical Effect classification.
+G6 must preserve the existing kernel invariant: **model identity is an execution resource, never Agent identity, and no routing policy can override authority/security/privacy hard constraints.**

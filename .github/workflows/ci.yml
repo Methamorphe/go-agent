@@ -32,6 +32,10 @@ jobs:
 
       - run: go test ./...
 
+      - name: Compile long-duration soak scenarios
+        if: runner.os == 'Linux'
+        run: go test -tags=soak -run '^$' ./internal/mmu ./internal/storage/sqlite
+
       - run: go vet ./...
 
       - run: go build ./cmd/go-agent ./cmd/go-agentctl
