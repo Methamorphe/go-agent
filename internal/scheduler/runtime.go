@@ -31,24 +31,19 @@ func (m *Metrics) Snapshot() MetricsSnapshot {
 		return MetricsSnapshot{}
 	}
 	return MetricsSnapshot{
-		Decisions:      m.decisions.Load(),
-		NoEligible:     m.noEligible.Load(),
-		BudgetRejected: m.budgetRejected.Load(),
-		SlotRejected:   m.slotRejected.Load(),
-		FallbackRoutes: m.fallbackRoutes.Load(),
-		Completed:      m.completed.Load(),
-		Failed:         m.failed.Load(),
+		Decisions: m.decisions.Load(), NoEligible: m.noEligible.Load(), BudgetRejected: m.budgetRejected.Load(),
+		SlotRejected: m.slotRejected.Load(), FallbackRoutes: m.fallbackRoutes.Load(), Completed: m.completed.Load(), Failed: m.failed.Load(),
 	}
 }
 
 type Runtime struct {
 	Router  *Router
-	Budgets *BudgetLedger
+	Budgets BudgetStore
 	Slots   *Slots
 	Metrics *Metrics
 }
 
-func NewRuntime(router *Router, budgets *BudgetLedger, slots *Slots) *Runtime {
+func NewRuntime(router *Router, budgets BudgetStore, slots *Slots) *Runtime {
 	if router == nil {
 		router = NewRouter(nil, nil, nil)
 	}
@@ -122,10 +117,7 @@ func (r *Runtime) Prepare(task CognitiveTask, excluded map[string]struct{}) (*At
 		if len(excluded) > 0 || len(workExcluded) > len(excluded) {
 			r.Metrics.fallbackRoutes.Add(1)
 		}
-		return &Attempt{
-			Decision: decision, Profile: profile, ReservationID: reservationID,
-			Reserved: decision.EstimatedCost, Lease: lease, startedAt: r.Router.clock.Now().UTC(),
-		}, nil
+		return &Attempt{Decision: decision, Profile: profile, ReservationID: reservationID, Reserved: decision.EstimatedCost, Lease: lease, startedAt: r.Router.clock.Now().UTC()}, nil
 	}
 	r.Metrics.noEligible.Add(1)
 	return nil, &NoEligibleError{}
