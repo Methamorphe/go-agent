@@ -10,10 +10,10 @@ func TestG6EvaluationAgainstStaticBaselines(t *testing.T) {
 	strongest := testProfile("cloud", "strongest", LocalityCloud, .99, 4*time.Second)
 	strongest.InputCostMicrosPerMillion = 80_000_000
 	strongest.OutputCostMicrosPerMillion = 160_000_000
-	cheapest := testProfile("cloud", "cheapest", LocalityCloud, .70, 2*time.Second)
+	cheapest := testProfile("cloud", "cheapest", LocalityCloud, .78, 2*time.Second)
 	cheapest.InputCostMicrosPerMillion = 100_000
 	cheapest.OutputCostMicrosPerMillion = 200_000
-	fastest := testProfile("local", "fastest", LocalityLocal, .78, 100*time.Millisecond)
+	fastest := testProfile("local", "fastest", LocalityLocal, .75, 100*time.Millisecond)
 	fastest.InputCostMicrosPerMillion = 1_000_000
 	fastest.OutputCostMicrosPerMillion = 1_000_000
 
