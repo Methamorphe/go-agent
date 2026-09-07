@@ -10,7 +10,7 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is ready.**
 
 See:
 
@@ -22,6 +22,7 @@ See:
 - `G3_EXIT_REVIEW.md`;
 - `G4_EXIT_REVIEW.md`;
 - `G5_EXIT_REVIEW.md`;
+- `G6_EXIT_REVIEW.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
@@ -486,7 +487,7 @@ See `G5_EXIT_REVIEW.md`.
 
 ---
 
-# G6 — Cognitive Scheduler v0 🟢 READY
+# G6 — Cognitive Scheduler v0 ✅ COMPLETE
 
 ## Goal
 
@@ -499,25 +500,40 @@ Stop binding an Agent Process to one model.
 - hard eligibility filtering;
 - cost/latency/quality score policy;
 - runtime provider health/circuit breaker;
-- budget reservation/settlement;
+- durable budget reservation/settlement;
 - fallback;
 - privacy/locality constraints;
-- fairness/global/per-root slots;
-- routing decision events/metrics.
+- fairness/global/per-root/provider slots;
+- routing decision events/metrics;
+- daemon/config integration;
+- MMU/invocation integration;
+- static-baseline evaluation.
 
 ## Initial policy
 
 Deterministic rules first.
 
-No learned router in v0.
+No learned router in v0. Shadow/advisory routing cannot weaken hard constraints.
 
 ## Evaluation
 
-Compare against always-default/always-strongest/always-cheapest baselines on verified quality, cost and latency.
+Quality-first, cost-first and latency-first routing are compared against strongest, cheapest and fastest static baselines on a controlled profile matrix. Balanced routing remains an explicit utility tradeoff.
+
+## G6 result
+
+**PASS.**
+
+G6 routes each bounded MMU-built invocation independently while preserving stable Agent identity. It includes hard context/capability/privacy/policy/health/quality/reliability/budget/deadline filtering, deterministic scoring, provider telemetry/circuit breaking, bounded fallback, global/root/provider slots and durable routing events.
+
+Root model-budget accounting is persisted in SQLite by `0006_cognitive_scheduler.sql`. Limits, spent usage and active reservations survive close/reopen; overspend remains rejected after restart and settlement stays exact-once.
+
+GitHub Actions run `34160212580` passed cross-platform tests/vet/builds and `go test -race ./...` on the durable-budget implementation.
+
+See `G6_EXIT_REVIEW.md` and `COGNITIVE_SCHEDULER_V0.md`.
 
 ---
 
-# G7 — Workspace/OCI World + Agent Transactions
+# G7 — Workspace/OCI World + Agent Transactions 🟢 READY
 
 ## Goal
 
@@ -769,7 +785,7 @@ bounded context
 recursive subagents
 ```
 
-But polish must not prevent progression toward G6–G10, where model scheduling, transactions/forks, epistemic memory and typed context faults deepen the differentiation.
+G6 adds model/resource scheduling and restart-safe model-budget accounting. Polish must not prevent progression toward G7–G10, where transactions/forks, epistemic memory and typed context faults deepen the differentiation.
 
 ---
 
@@ -800,19 +816,17 @@ Long-duration validation uses tagged provider-free soak scenarios and explicit b
 
 # Immediate next step
 
-**G6 — Cognitive Scheduler v0 is READY.**
+**G7 — Workspace/OCI World + Agent Transactions is READY.**
 
-Build per-Cognitive-Task model/resource scheduling on top of the durable process, MMU, authority and recursive-economy foundations with:
+Build isolated and reversible execution on top of the durable process, authority/effect, MMU, recursive-orchestration and Cognitive Scheduler foundations with:
 
-- a versioned model/backend registry and Profile;
-- explicit Cognitive Task descriptors separate from Agent identity;
-- hard privacy/locality/context/capability/quality eligibility before scoring;
-- deterministic quality/cost/latency/reliability scoring;
-- provider health and circuit-breaker state;
-- pessimistic budget reservation followed by exact settlement;
-- bounded fallback and retry/reroute semantics;
-- global/per-provider/per-root admission and fairness;
-- durable, explainable routing decision events and metrics;
-- evaluation against always-default, always-strongest and always-cheapest baselines.
+- a Git-aware WorkspaceWorld with explicit dirty/untracked base policy;
+- OCI execution with controlled mounts, restricted network and CPU/memory/time limits;
+- explicit World snapshot/fork guarantees;
+- transaction `begin → execute → verify → prepare → commit/rollback/reconcile` boundaries;
+- target-divergence detection and three-way promotion;
+- crash recovery at every transaction boundary;
+- reconciliation for uncertain APPLY outcomes;
+- hard prevention of false rollback claims for irreversible effects.
 
-G6 must preserve the existing kernel invariant: **model identity is an execution resource, never Agent identity, and no routing policy can override authority/security/privacy hard constraints.**
+G7 must preserve the existing kernel invariant: **transactions may add isolation/reversibility only where the World/Profile can actually guarantee it; they must never rewrite observed history or pretend an irreversible external effect was undone.**

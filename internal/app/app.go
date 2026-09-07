@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/Methamorphe/go-agent/internal/agent"
 	"github.com/Methamorphe/go-agent/internal/clock"
 	"github.com/Methamorphe/go-agent/internal/config"
 	"github.com/Methamorphe/go-agent/internal/control"
@@ -83,10 +82,12 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("initialize recursive orchestration: %w", err)
 	}
-	agentRunner := agent.NewG4(a.logger, processes, objects, ids, runtimeID, memory)
+	agentRunner, err := buildAgentRunner(a.logger, a.cfg, processes, objects, ids, runtimeID, memory, a.clock, store)
+	if err != nil {
+		return fmt.Errorf("initialize cognitive scheduler: %w", err)
+	}
 	processSupervisor := supervisor.New(a.logger, processes, a.clock, runtimeID)
 
-	// Recovery completes before the daemon accepts control requests.
 	if err := processSupervisor.Recover(ctx); err != nil {
 		if ctx.Err() != nil {
 			a.logger.Info("runtime recovery cancelled", "reason", ctx.Err())
@@ -133,6 +134,7 @@ func (a *App) Run(ctx context.Context) error {
 		"data_dir", a.cfg.DataDir,
 		"database", a.cfg.DatabasePath(),
 		"control_address", a.cfg.ControlAddress,
+		"cognitive_scheduler", a.cfg.Scheduler.Enabled,
 	)
 
 	select {

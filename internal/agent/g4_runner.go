@@ -18,6 +18,7 @@ import (
 	"github.com/Methamorphe/go-agent/internal/objectstore"
 	"github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/provider"
+	"github.com/Methamorphe/go-agent/internal/scheduler"
 )
 
 const (
@@ -62,6 +63,7 @@ type G4Runner struct {
 	memory          *mmu.Manager
 	providerFactory ProviderFactory
 	cfg             G4RunnerConfig
+	g6              *g6State
 }
 
 func NewG4(logger G4Logger, processes ProcessAPI, objects *objectstore.Store, ids G4IDGenerator, runtimeID id.RuntimeInstanceID, memory *mmu.Manager) *G4Runner {
@@ -101,7 +103,7 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 	if request.AgentID == "" {
 		return RunResult{}, errs.New(errs.CodeInvalidArgument, "agent.g4.run", "agent id is required")
 	}
-	if strings.TrimSpace(request.Model) == "" {
+	if strings.TrimSpace(request.Model) == "" && r.g6 == nil {
 		return RunResult{}, errs.New(errs.CodeInvalidArgument, "agent.g4.run", "model is required")
 	}
 	if strings.TrimSpace(request.Workspace) == "" {
@@ -113,10 +115,17 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 	if request.MaxSteps > MaximumMaxSteps {
 		return RunResult{}, errs.New(errs.CodeInvalidArgument, "agent.g4.run", "max_steps exceeds maximum")
 	}
+	if r.g6 != nil && strings.TrimSpace(request.Model) == "" {
+		request.Model = "scheduler-v0"
+	}
 
-	model, err := r.providerFactory(request)
-	if err != nil {
-		return RunResult{}, err
+	var model provider.Provider
+	if r.g6 == nil {
+		var err error
+		model, err = r.providerFactory(request)
+		if err != nil {
+			return RunResult{}, err
+		}
 	}
 	state, err := r.processes.Inspect(ctx, request.AgentID)
 	if err != nil {
@@ -127,6 +136,11 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 	}
 	if state.RootIntent == nil {
 		return RunResult{}, errs.New(errs.CodeCorruption, "agent.g4.run", "process has no root intent")
+	}
+	if r.g6 != nil {
+		if err := r.g6.ensureRootBudget(state.RootAgentID); err != nil {
+			return RunResult{}, err
+		}
 	}
 
 	correlationID, err := r.ids.Correlation()
@@ -155,7 +169,10 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 		r.bestEffortYield(ctx, state, meta, "invalid_workspace")
 		return RunResult{}, err
 	}
-	invocations := invocation.New(r.processes, r.objects, r.ids, r.live)
+	var invocations *invocation.Service
+	if r.g6 == nil {
+		invocations = invocation.New(r.processes, r.objects, r.ids, r.live)
+	}
 	tools := append(agentsyscall.Tools(), recallToolDefinition())
 
 	systemPage, err := r.memory.CreatePage(ctx, mmu.PageInput{AgentID: request.AgentID, Type: mmu.PageDocumentation, Scope: mmu.ScopeProcess, SourceRef: "runtime:g4-system-prompt", Content: g4SystemPrompt, Importance: 1, Confidence: 1})
@@ -183,7 +200,19 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 		}
 
 		expected = state.Version
-		outcome, nextState, invokeErr := invocations.Invoke(ctx, model, request.AgentID, request.Model, messages, tools, &expected, meta)
+		var outcome invocation.Outcome
+		var nextState process.State
+		var invokeErr error
+		if r.g6 != nil {
+			task := r.g6.cognitiveTask(request, state, correlationID, step, manifest, r.cfg.ReservedOutputTokens)
+			var decision scheduler.RoutingDecision
+			outcome, nextState, decision, invokeErr = r.g6.scheduled.Invoke(ctx, task, messages, tools, &expected, meta)
+			if decision.Selected.ModelID != "" {
+				manifest.Model = string(decision.Selected.ModelID)
+			}
+		} else {
+			outcome, nextState, invokeErr = invocations.Invoke(ctx, model, request.AgentID, request.Model, messages, tools, &expected, meta)
+		}
 		state = nextState
 		if outcome.InvocationID != "" {
 			if _, manifestErr := r.memory.PersistManifest(context.WithoutCancel(ctx), outcome.InvocationID, manifest); manifestErr != nil {

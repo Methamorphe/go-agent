@@ -13,14 +13,15 @@ import (
 )
 
 type Config struct {
-	DataDir               string `json:"data_dir"`
-	LogLevel              string `json:"log_level"`
-	ControlAddress        string `json:"control_address"`
-	PprofAddress          string `json:"pprof_address"`
-	SQLiteBusyTimeoutMS   int    `json:"sqlite_busy_timeout_ms"`
-	SQLiteMaxOpenConns    int    `json:"sqlite_max_open_conns"`
-	MaxFrameBytes         int    `json:"max_frame_bytes"`
-	MaxControlConnections int    `json:"max_control_connections"`
+	DataDir               string          `json:"data_dir"`
+	LogLevel              string          `json:"log_level"`
+	ControlAddress        string          `json:"control_address"`
+	PprofAddress          string          `json:"pprof_address"`
+	SQLiteBusyTimeoutMS   int             `json:"sqlite_busy_timeout_ms"`
+	SQLiteMaxOpenConns    int             `json:"sqlite_max_open_conns"`
+	MaxFrameBytes         int             `json:"max_frame_bytes"`
+	MaxControlConnections int             `json:"max_control_connections"`
+	Scheduler             SchedulerConfig `json:"scheduler"`
 }
 
 type Overrides struct {
@@ -38,6 +39,7 @@ func Defaults() Config {
 		SQLiteMaxOpenConns:    8,
 		MaxFrameBytes:         4 << 20,
 		MaxControlConnections: 32,
+		Scheduler:             DefaultSchedulerConfig(),
 	}
 }
 
@@ -314,6 +316,10 @@ func (c Config) Validate() error {
 		return fmt.Errorf(
 			"max_control_connections must be between 1 and 1024",
 		)
+	}
+
+	if err := c.Scheduler.Validate(); err != nil {
+		return err
 	}
 
 	return nil

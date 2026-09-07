@@ -10,18 +10,21 @@ G2  COMPLETE
 G3  COMPLETE
 G4  COMPLETE
 G5  COMPLETE
-G6  READY
+G6  COMPLETE
+G7  READY
 ```
 
 ## Current generation
 
-**G5 — Recursive Agent Processes: COMPLETE.**
+**G6 — Cognitive Scheduler v0: COMPLETE.**
 
-G5 implements durable recursive Agent Processes with delegated Task Intent, authority subsets, hierarchical budget reservation/settlement, bounded durable mailboxes, restart-safe waits, wait-cycle detection, cancellation propagation, fan-out/depth/parallelism controls, fair admission, explicit completed-work reuse and structured evidence-oriented result contracts.
+G6 implements deterministic per-invocation model scheduling over bounded Cognitive MMU context with model Profiles, hard eligibility constraints, cost/latency/quality/load scoring, provider health/circuit breaking, fallback, privacy/locality policy, bounded global/per-root/provider concurrency, durable routing events/metrics and exact resource reservation/settlement.
 
-The G5 killer scenario proves three delegated repository investigators survive durable-store reopen while the parent is waiting and return bounded structured results/evidence without importing whole child transcripts.
+The daemon is config-driven and opt-in. Legacy G4 behavior remains unchanged when the scheduler is disabled.
 
-The integrated `main` head `9bf595ad40f0b74458deab52da67d06fd6984f0d` passed GitHub Actions run `33214992611`:
+Scheduler root-budget state is durable in SQLite via migration `0006_cognitive_scheduler.sql`: limits, spent usage and active reservations survive close/reopen, preventing budget reset or overspend after daemon restart.
+
+GitHub Actions run `34160212580` on head `ba26110afe7cadb96832d8ab2df357e3bcd6d949` passed:
 
 ```text
 test (ubuntu-latest)  ✅
@@ -30,12 +33,12 @@ test (windows-latest) ✅
 race                   ✅
 ```
 
-This integrated pass also validates the compiled/tested/race state of G4 as included in G5. The remaining G4/G0 longevity debt is empirical rather than a known compile/race defect.
+The platform jobs passed `go test ./...`, `go vet ./...`, soak-scenario compilation where applicable and both binary builds. The race job passed `go test -race ./...`.
 
 See:
 
-- `G5_EXIT_REVIEW.md`;
-- `G4_EXIT_REVIEW.md`;
+- `G6_EXIT_REVIEW.md`;
+- `COGNITIVE_SCHEDULER_V0.md`;
 - `LONG_DURATION_BENCHMARKS.md`.
 
 ## Long-duration validation
@@ -48,10 +51,10 @@ soak compile gate           ENABLED IN CI
 24h reference run           PENDING
 ```
 
-The executable baseline currently covers real SQLite reopen/checkpoint durability and Cognitive MMU boundedness against a persisted large corpus. Reference long-duration results must be recorded before claiming full 1h/8h/24h validation.
+The executable baseline covers real SQLite reopen/checkpoint durability, Cognitive MMU boundedness against persisted large corpora, and scheduler budget restart safety. Reference 1h/8h/24h runs remain empirical longevity work and are not a known G6 correctness defect.
 
 ## Next generation
 
-**G6 — Cognitive Scheduler v0: READY.**
+**G7 — Workspace/OCI World + Agent Transactions: READY.**
 
-G6 can now build model/resource scheduling on top of durable processes, bounded context, controlled Worlds and recursive orchestration without changing G5 semantics.
+G7 can now build isolated reversible/speculative execution and transaction semantics on top of durable processes, authority/effects, bounded context, recursive orchestration and model/resource scheduling.
