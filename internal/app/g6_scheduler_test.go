@@ -9,6 +9,8 @@ import (
 )
 
 func TestBuildG6SchedulerFromDaemonConfig(t *testing.T) {
+	t.Setenv("TEST_OPENAI_KEY", "test-key")
+
 	cfg := config.DefaultSchedulerConfig()
 	cfg.Enabled = true
 	cfg.MaxProfiles = 8
