@@ -4,11 +4,15 @@
 
 **G4 — Cognitive MMU v0: COMPLETE.**
 
-**G5 — Recursive Agent Processes: READY.**
+**G5 — Recursive Agent Processes: COMPLETE. G6 — Cognitive Scheduler v0: READY.**
 
-G4 is closed on August 28, 2026 after merging PR #1 (`feat(g4): implement Cognitive MMU v0`) into `main` as commit `25c5e6c0dfa5bc97166532d29d811d1d22ffad2c`.
+G4 was closed on August 28, 2026 after merging PR #1 (`feat(g4): implement Cognitive MMU v0`) into `main` as commit `25c5e6c0dfa5bc97166532d29d811d1d22ffad2c`.
 
-Per project-owner decision, the final multi-platform/race validation pass is **deferred** and will be run later. This does not block advancing the implementation roadmap to G5; any validation defect discovered later must be fixed without silently changing the accepted G4 semantics.
+At the exact G4 closure point, the project owner explicitly deferred the final multi-platform/race validation pass. That was historical validation debt, not unfinished feature scope.
+
+A later integrated `main` validation after G5 closed that compile/test/vet/race portion of the debt: head `9bf595ad40f0b74458deab52da67d06fd6984f0d` passed GitHub Actions run `33214992611` on Ubuntu, macOS, Windows and the race detector while containing the complete G4 implementation.
+
+The remaining G4 debt is empirical long-duration MMU corpus/heap/latency calibration. An executable soak harness is now documented in `LONG_DURATION_BENCHMARKS.md`; representative 1h/8h/24h reference runs are still pending.
 
 ---
 
@@ -55,8 +59,6 @@ MMU-009 summary retains source references
 MMU-010 manifest deterministically explains v0 selection for fixed inputs
 ```
 
-The final full CI/race execution of the latest G4 commit set is intentionally deferred by the project owner.
-
 ---
 
 ## Preserved architecture invariants
@@ -76,42 +78,53 @@ The final full CI/race execution of the latest G4 commit set is intentionally de
 
 ---
 
-## Deferred validation
+## Validation status
 
-The following validation is deliberately postponed rather than represented as completed:
+### Resolved after the original G4 exit
 
-- latest `go test ./...` on all CI operating systems;
-- latest `go vet ./...` on all CI operating systems;
-- latest binary builds on all CI operating systems;
-- latest `go test -race ./...`;
-- longer empirical MMU corpus/heap/latency calibration.
+The integrated G5/main validation run `33214992611` passed:
 
-These are validation debt, not unfinished G4 feature scope.
+```text
+go test ./...                  ✅ Ubuntu/macOS/Windows
+go vet ./...                   ✅ Ubuntu/macOS/Windows
+go build ./cmd/go-agent
+         ./cmd/go-agentctl     ✅ Ubuntu/macOS/Windows
+go test -race ./...            ✅ Ubuntu
+```
+
+Because that head contains the complete G4 code, the historical deferred compile/test/vet/race pass is no longer an open debt item.
+
+### Remaining empirical debt
+
+The following still require representative long-duration/reference-hardware execution:
+
+- MMU corpus/heap/latency calibration over 1h/8h/24h profiles;
+- process RSS sampling in addition to Go heap metrics;
+- longer SQLite/MMU mixed-workload stability;
+- machine-specific p95 latency baselines.
+
+The tagged soak scenarios now provide a repeatable mechanism for this work. Until those reference runs are recorded, long-duration boundedness is partially validated rather than fully closed empirically.
 
 ---
 
-# G5 readiness
+# G5/G6 readiness
 
-G5 can now build on a durable bounded cognitive substrate.
+G5 has since completed successfully on top of G4, including recursive durable orchestration and a full cross-platform/race pass.
 
-The next generation is:
+The current next generation is:
 
-## G5 — Recursive Agent Processes
+## G6 — Cognitive Scheduler v0
 
 Primary implementation targets:
 
-- durable `spawn()` validate/reserve/create protocol;
-- child Task Intent and authority subset;
-- structured result/evidence contract;
-- bounded messaging/mailboxes;
-- durable parent waits;
-- cancellation tree;
-- wait-for cycle detection;
-- fan-out/depth/fairness controls;
-- budget reservations and settlement.
+- model registry/Profile;
+- Cognitive Task descriptor;
+- hard eligibility filtering;
+- deterministic cost/latency/quality policy;
+- provider health/circuit breaker;
+- hierarchical budget reservation/settlement;
+- fallback and privacy/locality constraints;
+- fairness/global/per-root slots;
+- routing decision events/metrics.
 
-Killer demonstration:
-
-> A root Agent Process delegates three repository investigations in parallel, survives daemon restart while a child is pending, and receives bounded structured evidence without importing whole child transcripts.
-
-**G5 is READY.**
+**G4 remains COMPLETE. G6 is READY.**
