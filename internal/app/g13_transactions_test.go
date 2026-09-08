@@ -20,7 +20,7 @@ type g13ProcessPolicyFixture struct {
 	state agentprocess.State
 }
 
-func (f *g13ProcessPolicyFixture) Current(context.Context, id.AgentID) (agentprocess.State, error) {
+func (f *g13ProcessPolicyFixture) Inspect(context.Context, id.AgentID) (agentprocess.State, error) {
 	return f.state, nil
 }
 
