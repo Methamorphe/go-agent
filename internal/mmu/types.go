@@ -198,6 +198,7 @@ type ContextManifest struct {
 	ActiveTokens   int                 `json:"active_tokens"`
 	Pages          []ManifestPage      `json:"pages"`
 	Excluded       []ManifestExclusion `json:"excluded,omitempty"`
+	Faults         []ManifestFault     `json:"faults,omitempty"`
 }
 
 type WorkingSet struct {
@@ -234,6 +235,7 @@ type Config struct {
 	RecallLoopThreshold    int
 	MaxRecallTrackers      int
 	Weights                RankingWeights
+	FaultBudget            FaultBudget
 }
 
 func DefaultConfig() Config {
@@ -255,6 +257,7 @@ func DefaultConfig() Config {
 			Confidence: 0.5,
 			Type:       0.5,
 		},
+		FaultBudget: DefaultFaultBudget(),
 	}
 }
 
