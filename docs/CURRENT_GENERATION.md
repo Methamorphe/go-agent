@@ -19,6 +19,8 @@ G11 COMPLETE
 G12 COMPLETE
 G13 COMPLETE
 G14 READY
+G15 PLANNED
+G16 PLANNED
 ```
 
 ## Current generation
@@ -96,6 +98,14 @@ Long-duration 1h/8h/24h reference campaigns remain empirical calibration work sh
 
 ## Next generation
 
-**G14 — Distributed Worlds / Workers: READY.**
+**G14 — Wails v3 Desktop GUI / Agent Workspace: READY.**
 
-G14 can now extend the same durable Agent Process and World abstractions across local and remote workers while preserving identity, authority, transaction, object and reconciliation semantics established through G13.
+G14 will build the graphical desktop product on **Wails v3 intentionally, including while v3 is beta**. There is no planned Wails v2 fallback. The beta status is handled through exact version pinning, reproducible tooling, Wails boundary adapters, binding/event/window smoke tests, cross-platform CI and rollback to the previous known-good v3 pin when necessary.
+
+The target is a fluid, modern and ultra-light Agent workspace inspired by the strongest interaction patterns from products such as Hermes and Goose: durable session navigation, central conversation/activity flow, multi-Agent cockpit, contextual file/plan/diff/runtime inspectors, editable queued follow-ups, command palette, smooth bounded streaming, long-history virtualization, tasteful motion and strong keyboard/mouse UX.
+
+The GUI remains a replaceable presentation client of the durable daemon. TUI and GUI must be able to attach to the same canonical sessions, and closing or crashing the GUI must not cancel durable Agent work.
+
+See `G14_WAILS_DESKTOP_GUI.md` and `ROADMAP.md`.
+
+After G14, the roadmap continues with **G15 — Distributed Worlds / Workers**, followed by **G16 — Production Observability / Time-Travel Debugger**.
