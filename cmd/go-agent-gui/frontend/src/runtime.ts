@@ -10,6 +10,10 @@ import type {
 } from "./types";
 
 export class WailsRuntimeClient implements RuntimeClient {
+  frontendReady(): Promise<void> {
+    return DesktopService.FrontendReady() as Promise<void>;
+  }
+
   bootstrap(): Promise<Bootstrap> {
     return DesktopService.Bootstrap() as Promise<Bootstrap>;
   }
