@@ -12,16 +12,25 @@ import (
 	"github.com/Methamorphe/go-agent/internal/world"
 )
 
+type CommitGuard func(context.Context, Transaction) error
+
 type Manager struct {
-	store Store
-	ids   *id.Generator
-	now   func() time.Time
+	store       Store
+	ids         *id.Generator
+	now         func() time.Time
+	commitGuard CommitGuard
 }
 
 type BeginRequest struct {
 	AgentID        id.AgentID
 	BaseCheckpoint id.CheckpointID
 	CommitPolicy   CommitPolicy
+}
+
+type EffectResolution struct {
+	EffectID  id.EffectRecordID
+	Certainty OutcomeCertainty
+	Evidence  string
 }
 
 func NewManager(store Store, generator *id.Generator, now func() time.Time) *Manager {
@@ -32,6 +41,15 @@ func NewManager(store Store, generator *id.Generator, now func() time.Time) *Man
 		now = time.Now
 	}
 	return &Manager{store: store, ids: generator, now: now}
+}
+
+// SetCommitGuard installs the current-policy/capability revalidation hook used
+// immediately before PREPARE and again before COMMIT. It is intended to be
+// configured during runtime construction, before concurrent use of Manager.
+func (m *Manager) SetCommitGuard(guard CommitGuard) {
+	if m != nil {
+		m.commitGuard = guard
+	}
 }
 
 func (m *Manager) Begin(ctx context.Context, request BeginRequest, branch world.TransactionalWorld) (Transaction, error) {
@@ -56,6 +74,9 @@ func (m *Manager) Begin(ctx context.Context, request BeginRequest, branch world.
 	policy := request.CommitPolicy
 	if policy == "" {
 		policy = CommitRequireVerification
+	}
+	if policy != CommitRequireVerification {
+		return Transaction{}, fmt.Errorf("unsupported transaction commit policy %q", policy)
 	}
 	now := m.now().UTC()
 	tx := Transaction{
@@ -124,9 +145,9 @@ func (m *Manager) Execute(ctx context.Context, txID id.TransactionID, branch wor
 		return world.Result{Status: world.ResultDenied, Error: ErrIrreversibleDeferred.Error()}, ErrIrreversibleDeferred
 	}
 
-	// Persist DISPATCHED before crossing the World boundary. If this write fails,
-	// the mutation is not attempted. If the process dies after this point, the
-	// durable record conservatively forces reconciliation/rollback.
+	// DISPATCHED is durable before the World boundary. If the runtime loses
+	// certainty after this point, the transaction itself enters reconciliation;
+	// it never remains OPEN and eligible for a false clean rollback.
 	if err := m.store.UpdateEffect(ctx, effectID, EffectDispatched, OutcomeUnknown, "", "EffectDispatched", payload(map[string]any{"action_id": action.ID})); err != nil {
 		return world.Result{}, err
 	}
@@ -136,7 +157,8 @@ func (m *Manager) Execute(ctx context.Context, txID id.TransactionID, branch wor
 		if persistErr != nil {
 			return result, errors.Join(executeErr, persistErr)
 		}
-		return result, executeErr
+		_, reconcileErr := m.markNeedsReconciliation(ctx, tx, executeErr)
+		return result, reconcileErr
 	}
 	if err := m.store.UpdateEffect(ctx, effectID, EffectCompleted, OutcomeKnownApplied, "", "EffectCompleted", payload(map[string]any{"action_id": action.ID, "status": result.Status})); err != nil {
 		return result, err
@@ -223,6 +245,9 @@ func (m *Manager) Prepare(ctx context.Context, txID id.TransactionID, branch wor
 	if tx.State != StateReadyToCommit {
 		return world.PromotionPlan{}, fmt.Errorf("%w: prepare requires READY_TO_COMMIT, got %s", ErrInvalidState, tx.State)
 	}
+	if err := m.checkCommitGuard(ctx, tx); err != nil {
+		return world.PromotionPlan{}, err
+	}
 	if tx.PreparedPlan != nil && tx.PreparedPlan.Merged != "" {
 		return *tx.PreparedPlan, nil
 	}
@@ -262,6 +287,9 @@ func (m *Manager) Commit(ctx context.Context, txID id.TransactionID, branch worl
 	if tx.State != StateReadyToCommit || tx.PreparedPlan == nil || tx.PreparedPlan.Merged == "" {
 		return Transaction{}, fmt.Errorf("%w: commit requires a fully prepared transaction", ErrInvalidState)
 	}
+	if err := m.checkCommitGuard(ctx, tx); err != nil {
+		return tx, err
+	}
 	committing, err := m.store.Transition(ctx, tx.ID, tx.Version, []State{StateReadyToCommit}, StateCommitting, tx.PreparedPlan, "", "CommitStarted", payload(map[string]any{"operation_id": tx.PreparedPlan.OperationID}))
 	if err != nil {
 		return Transaction{}, err
@@ -290,6 +318,11 @@ func (m *Manager) Rollback(ctx context.Context, txID id.TransactionID, branch wo
 	if !containsState([]State{StateOpen, StateVerifying, StateReadyToCommit}, tx.State) {
 		return Transaction{}, fmt.Errorf("%w: rollback not allowed from %s", ErrInvalidState, tx.State)
 	}
+	if reason, err := m.rollbackHazard(ctx, tx.ID); err != nil {
+		return Transaction{}, err
+	} else if reason != "" {
+		return m.markNeedsReconciliation(ctx, tx, errors.New(reason))
+	}
 	rolling, err := m.store.Transition(ctx, tx.ID, tx.Version, []State{tx.State}, StateRollingBack, tx.PreparedPlan, "", "RollbackStarted", nil)
 	if err != nil {
 		return Transaction{}, err
@@ -316,6 +349,11 @@ func (m *Manager) Reconcile(ctx context.Context, txID id.TransactionID, branch w
 	}
 
 	if tx.PreparedPlan == nil || tx.PreparedPlan.Merged == "" {
+		if reason, err := m.rollbackHazard(ctx, tx.ID); err != nil {
+			return tx, err
+		} else if reason != "" {
+			return tx, errors.Join(ErrReconciliationRequired, errors.New(reason))
+		}
 		if err := branch.Rollback(ctx); err != nil {
 			return tx, errors.Join(ErrReconciliationRequired, err)
 		}
@@ -327,6 +365,11 @@ func (m *Manager) Reconcile(ctx context.Context, txID id.TransactionID, branch w
 	}
 	switch status {
 	case world.PromotionApplied:
+		if reason, err := m.unresolvedEffectHazard(ctx, tx.ID); err != nil {
+			return tx, err
+		} else if reason != "" {
+			return tx, errors.Join(ErrReconciliationRequired, errors.New(reason))
+		}
 		if err := branch.VerifyPromotion(ctx, *tx.PreparedPlan); err != nil {
 			return tx, errors.Join(ErrReconciliationRequired, err)
 		}
@@ -339,6 +382,11 @@ func (m *Manager) Reconcile(ctx context.Context, txID id.TransactionID, branch w
 		}
 		return committed, nil
 	case world.PromotionNotApplied:
+		if reason, err := m.rollbackHazard(ctx, tx.ID); err != nil {
+			return tx, err
+		} else if reason != "" {
+			return tx, errors.Join(ErrReconciliationRequired, errors.New(reason))
+		}
 		if err := branch.Rollback(ctx); err != nil {
 			return tx, errors.Join(ErrReconciliationRequired, err)
 		}
@@ -346,6 +394,48 @@ func (m *Manager) Reconcile(ctx context.Context, txID id.TransactionID, branch w
 	default:
 		return tx, ErrReconciliationRequired
 	}
+}
+
+func (m *Manager) ResolveEffect(ctx context.Context, txID id.TransactionID, resolution EffectResolution) error {
+	if resolution.EffectID == "" || resolution.Evidence == "" {
+		return fmt.Errorf("effect id and reconciliation evidence are required")
+	}
+	if resolution.Certainty != OutcomeKnownApplied && resolution.Certainty != OutcomeKnownAbsent {
+		return fmt.Errorf("effect reconciliation requires a known outcome")
+	}
+	tx, err := m.store.Get(ctx, txID)
+	if err != nil {
+		return err
+	}
+	if tx.State != StateNeedsReconciliation {
+		return fmt.Errorf("%w: effect resolution requires NEEDS_RECONCILIATION", ErrInvalidState)
+	}
+	effects, err := m.store.ListEffects(ctx, txID)
+	if err != nil {
+		return err
+	}
+	var target *EffectRecord
+	for i := range effects {
+		if effects[i].ID == resolution.EffectID {
+			target = &effects[i]
+			break
+		}
+	}
+	if target == nil {
+		return ErrNotFound
+	}
+	if target.OutcomeCertainty != OutcomeUnknown && target.State != EffectDispatched && target.State != EffectOutcomeUnknown {
+		return fmt.Errorf("effect outcome is already resolved")
+	}
+	state := EffectFailedBeforeEffect
+	if resolution.Certainty == OutcomeKnownApplied {
+		state = EffectCompleted
+	}
+	return m.store.UpdateEffect(ctx, target.ID, state, resolution.Certainty, "", "EffectReconciled", payload(map[string]any{
+		"effect_id": target.ID,
+		"certainty": resolution.Certainty,
+		"evidence":  resolution.Evidence,
+	}))
 }
 
 func (m *Manager) Recover(ctx context.Context, txID id.TransactionID, branch world.TransactionalWorld) (Transaction, error) {
@@ -381,6 +471,45 @@ func (m *Manager) loadForWorld(ctx context.Context, txID id.TransactionID, branc
 		return Transaction{}, fmt.Errorf("transaction world reference mismatch")
 	}
 	return tx, nil
+}
+
+func (m *Manager) checkCommitGuard(ctx context.Context, tx Transaction) error {
+	if m.commitGuard == nil {
+		return nil
+	}
+	if err := m.commitGuard(ctx, tx); err != nil {
+		return fmt.Errorf("transaction commit authorization is no longer valid: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) rollbackHazard(ctx context.Context, txID id.TransactionID) (string, error) {
+	effects, err := m.store.ListEffects(ctx, txID)
+	if err != nil {
+		return "", err
+	}
+	for _, effect := range effects {
+		if effect.OutcomeCertainty == OutcomeUnknown || effect.State == EffectDispatched || effect.State == EffectOutcomeUnknown {
+			return fmt.Sprintf("effect %s has unresolved outcome", effect.ID), nil
+		}
+		if effect.OutcomeCertainty == OutcomeKnownApplied && (effect.Effect.Class == world.EffectCompensatable || effect.Effect.Class == world.EffectIrreversible) {
+			return fmt.Sprintf("effect %s is externally visible and has no proven compensation", effect.ID), nil
+		}
+	}
+	return "", nil
+}
+
+func (m *Manager) unresolvedEffectHazard(ctx context.Context, txID id.TransactionID) (string, error) {
+	effects, err := m.store.ListEffects(ctx, txID)
+	if err != nil {
+		return "", err
+	}
+	for _, effect := range effects {
+		if effect.OutcomeCertainty == OutcomeUnknown || effect.State == EffectDispatched || effect.State == EffectOutcomeUnknown {
+			return fmt.Sprintf("effect %s has unresolved outcome", effect.ID), nil
+		}
+	}
+	return "", nil
 }
 
 func (m *Manager) markNeedsReconciliation(ctx context.Context, tx Transaction, cause error) (Transaction, error) {
