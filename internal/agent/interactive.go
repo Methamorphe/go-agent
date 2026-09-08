@@ -51,6 +51,14 @@ type interactiveSession struct {
 	bytes     int
 }
 
+type interactiveProcessRecorder interface {
+	UserMessageReceived(context.Context, id.AgentID, *uint64, process.UserMessageReceivedPayload, process.CommandMeta) (process.State, error)
+}
+
+type messageIDGenerator interface {
+	Message() (id.MessageID, error)
+}
+
 func (r *Runner) SendMessage(_ context.Context, request SendMessageRequest) (SendMessageResult, error) {
 	if r == nil || request.AgentID == "" {
 		return SendMessageResult{}, errs.New(errs.CodeInvalidArgument, "agent.message", "agent id is required")
@@ -68,9 +76,9 @@ func (r *Runner) SendMessage(_ context.Context, request SendMessageRequest) (Sen
 	if request.Queue != QueueSteer && request.Queue != QueueFollowUp {
 		return SendMessageResult{}, errs.New(errs.CodeInvalidArgument, "agent.message", "queue must be steer or follow_up")
 	}
-	messageID, err := r.ids.Message()
+	messageID, err := r.newInteractiveMessageID()
 	if err != nil {
-		return SendMessageResult{}, errs.Wrap(errs.CodeInternal, "agent.message", "generate message id", err)
+		return SendMessageResult{}, err
 	}
 
 	r.sessionsMu.Lock()
@@ -97,6 +105,21 @@ func (r *Runner) SendMessage(_ context.Context, request SendMessageRequest) (Sen
 	}
 	session.bytes += len(text)
 	return SendMessageResult{MessageID: messageID, AgentID: request.AgentID, Queue: request.Queue, Pending: pending + 1}, nil
+}
+
+func (r *Runner) newInteractiveMessageID() (id.MessageID, error) {
+	if generator, ok := r.ids.(messageIDGenerator); ok {
+		messageID, err := generator.Message()
+		if err != nil {
+			return "", errs.Wrap(errs.CodeInternal, "agent.message", "generate message id", err)
+		}
+		return messageID, nil
+	}
+	correlationID, err := r.ids.Correlation()
+	if err != nil {
+		return "", errs.Wrap(errs.CodeInternal, "agent.message", "generate fallback message id", err)
+	}
+	return id.MessageID("msg_" + strings.TrimPrefix(string(correlationID), "cor_")), nil
 }
 
 func (r *Runner) openInteractiveSession(agentID id.AgentID) (*interactiveSession, error) {
@@ -150,6 +173,10 @@ func (r *Runner) finalContinuation(ctx context.Context, session *interactiveSess
 }
 
 func (r *Runner) recordQueuedLocked(ctx context.Context, session *interactiveSession, state process.State, meta process.CommandMeta, includeFollowUp bool) (process.State, []string, error) {
+	recorder, ok := r.processes.(interactiveProcessRecorder)
+	if !ok {
+		return state, nil, errs.New(errs.CodeUnsupported, "agent.message", "process recorder does not support interactive messages")
+	}
 	messages := append([]queuedMessage(nil), session.steer...)
 	if includeFollowUp {
 		messages = append(messages, session.followUp...)
@@ -162,7 +189,7 @@ func (r *Runner) recordQueuedLocked(ctx context.Context, session *interactiveSes
 	texts := make([]string, 0, len(messages))
 	for _, message := range messages {
 		expected := state.Version
-		next, err := r.processes.UserMessageReceived(ctx, state.AgentID, &expected, process.UserMessageReceivedPayload{
+		next, err := recorder.UserMessageReceived(ctx, state.AgentID, &expected, process.UserMessageReceivedPayload{
 			MessageID: message.id,
 			Text:      message.text,
 			Queue:     string(message.queue),
