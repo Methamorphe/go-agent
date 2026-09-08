@@ -92,7 +92,7 @@ func TestIrreversibleEffectIsDeferredBeforeWorldExecution(t *testing.T) {
 	if branch.executeCalls != 0 {
 		t.Fatalf("irreversible action reached World: calls=%d", branch.executeCalls)
 	}
-	events, err := store.Events(ctx, tx.ID)
+	events, err := store.TransactionEvents(ctx, tx.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestFailedVerificationReturnsOpenThenRollsBack(t *testing.T) {
 	if rolled.State != StateRolledBack || branch.rollbackCalls != 1 {
 		t.Fatalf("rolled=%+v rollback_calls=%d", rolled, branch.rollbackCalls)
 	}
-	events, _ := store.Events(ctx, tx.ID)
+	events, _ := store.TransactionEvents(ctx, tx.ID)
 	if !hasEvent(events, "VerificationRejected") || !hasEvent(events, "RollbackFinalized") {
 		t.Fatalf("rollback audit incomplete: %+v", events)
 	}
