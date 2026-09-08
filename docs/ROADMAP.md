@@ -24,6 +24,7 @@ See:
 - `G5_EXIT_REVIEW.md`;
 - `G6_EXIT_REVIEW.md`;
 - `G7_EXIT_REVIEW.md`;
+- `PRODUCTION_TUI_WORKSPACE.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
@@ -723,7 +724,187 @@ hypothesis
 
 ---
 
-# G13 — Distributed Worlds / Workers
+# G13 — Production TUI / Interactive Agent Workspace
+
+## Goal
+
+Turn the durable runtime into a **delightful, fast and deeply inspectable terminal product** that is excellent for both pair-programming and supervising long-running multi-agent work.
+
+G13 should combine the strongest interaction ideas from Claude Code, Codex, Grok Build and Pi without cloning any one product. The TUI remains a replaceable client of the daemon and never owns canonical Agent state.
+
+See `PRODUCTION_TUI_WORKSPACE.md` for the detailed product contract.
+
+## Product principles
+
+- keyboard-first, mouse-capable fullscreen experience;
+- progressive disclosure: simple chat by default, deep runtime inspection on demand;
+- conversation remains fluid during tools, subagents and long tasks;
+- every important Agent operation has headless/runtime API parity;
+- no hidden authority: plans/approvals are UX, runtime capabilities/effects remain authoritative;
+- UI work scales with the visible viewport and active state, not Agent age/history size;
+- visual polish is a product requirement, not an afterthought.
+
+## Inspiration to keep
+
+### Claude Code
+
+- low-friction conversational workflow;
+- clear plan/act and permission boundaries;
+- compact tool/action progress;
+- strong keyboard ergonomics and project customization.
+
+### Codex
+
+- first-class multi-agent/task supervision;
+- parallel work that remains understandable;
+- goal + success-criteria oriented execution;
+- annotation/review workflows around produced work.
+
+### Grok Build
+
+- rich mouse-interactive fullscreen TUI;
+- dedicated plan viewer;
+- approve/comment/rewrite individual plan steps;
+- high-quality inline diff review;
+- discoverable skills/plugins/hooks/MCP/subagents.
+
+### Pi
+
+- composable interaction primitives;
+- themes/extensions/keymaps;
+- model switching;
+- tree-structured history;
+- steer-running-agent vs queued-follow-up distinction;
+- RPC/headless parity.
+
+## Core surfaces
+
+```text
+adaptive status/header
+Agent/task tree
+virtualized conversation
+composer + steering/follow-up queue
+command palette
+plan workspace
+diff/change review
+transaction inspector
+fork comparison
+Context/MMU inspector
+authority/approval inspector
+model/scheduler inspector
+history tree/search/bookmarks
+artifacts/test output viewer
+```
+
+## Required interaction modes
+
+```text
+ASK
+PLAN
+ACT
+REVIEW
+OBSERVE
+```
+
+Modes improve UX but never weaken capability, Intent, Effect or World enforcement.
+
+## Agent cockpit
+
+The user can inspect root/child Agents with state, task, model, World, elapsed time, budget/cost, active action and blocked reason; switch focus without stopping siblings; steer one Agent while others continue; and consume structured child evidence without importing full transcripts.
+
+Large process trees must be virtualized/filterable.
+
+## Plan + review workflow
+
+- complex tasks can enter PLAN before mutation;
+- hierarchical plan with dependencies/status;
+- inline comments on individual steps;
+- rewrite selected step without regenerating everything;
+- approve all or selected steps;
+- explicit PLAN → ACT transition;
+- clean diff review after execution;
+- comment on diff hunks and send feedback back to the active Agent.
+
+## G7/G8-native UX
+
+Transactions and forks are first-class UI concepts:
+
+- visible transaction state and verification results;
+- commit/rollback/reconcile controls only when semantically valid;
+- prominent `NEEDS_RECONCILIATION` uncertainty rather than false success;
+- speculative vs promoted changes clearly distinguished;
+- branch/fork tree, side-by-side candidate comparison, tests/benchmarks/diffs and winner promotion after G8.
+
+## Context / authority visibility
+
+The TUI should expose:
+
+- MMU working-set occupancy/pages/recalls/Context Faults;
+- model/provider/routing objective and fallback state;
+- capabilities, Effect class and World guarantees for approval requests;
+- cost/budget summaries;
+- causal security denials without cluttering normal conversation.
+
+Hidden model reasoning is not displayed; runtime-visible progress/state is.
+
+## Themes and customization
+
+- polished dark default + light theme;
+- truecolor with graceful terminal fallbacks;
+- declarative themes and semantic color tokens;
+- configurable keymaps;
+- command/skill palette;
+- customizable status-line segments;
+- safe external/RPC extension points rather than unsafe kernel-side UI plugins.
+
+## Performance gates
+
+Initial engineering targets on a normal developer machine:
+
+```text
+keypress → visible update p95          < 50 ms
+stream render target                   20–30 updates/s
+idle CPU attached                      near-zero / < 1% typical
+100k-block local attach                < 500 ms target
+normal viewport resize p95             < 50 ms
+history/render memory                  bounded by viewport/cache
+```
+
+These targets may be calibrated empirically, but G13 cannot close with full-history rendering, unbounded presentation queues or responsiveness that degrades linearly with session age.
+
+## Killer demonstrations
+
+1. start a long task, kill the TUI, let runtime/subagents continue, relaunch and instantly reattach to current state;
+2. open/search/resize/scroll a 100,000-block synthetic Agent session with multi-GB referenced artifacts while memory stays bounded;
+3. supervise at least three child Agents in parallel, steer one and queue a follow-up to another without stopping siblings;
+4. review/comment/rewrite a plan, execute in WorkspaceWorld, inspect diff/tests, verify and commit through the G7 transaction UI;
+5. force `NEEDS_RECONCILIATION` and prove the TUI never presents a false rollback/commit;
+6. after G8, compare two fork candidates side by side and promote only the winner;
+7. complete the core workflow with keyboard only.
+
+## Completion criteria
+
+```text
+production fullscreen TUI
+keyboard-first + optional mouse workflow
+virtualized long conversation/history
+first-class plan and diff review
+multi-Agent cockpit
+G7 transaction operation/inspection
+G8 fork comparison when available
+MMU/context inspector
+authority/approval inspector
+model/scheduler visibility
+themes + keymaps + command palette
+headless/runtime API parity
+macOS/Linux/Windows terminal matrix
+100k-block responsiveness benchmark
+TUI crash never kills Agent work
+```
+
+---
+
+# G14 — Distributed Worlds / Workers
 
 ## Goal
 
@@ -742,17 +923,17 @@ Agent identity remains independent from worker location.
 
 ---
 
-# G14 — Production Observability / Time-Travel Debugger
+# G15 — Production Observability / Time-Travel Debugger
 
 ## Goal
 
-Make complex agent behavior understandable and replayable.
+Make complex agent behavior understandable and replayable beyond the everyday G13 workspace.
 
 ## Deliverables
 
-- process/team tree UI;
+- advanced process/team tree observability;
 - causal graph;
-- context/fault inspector;
+- deep context/fault inspector;
 - belief/provenance graph;
 - authority/Action Proof inspector;
 - resource/cost timeline;
@@ -760,6 +941,8 @@ Make complex agent behavior understandable and replayable.
 - checkpoint/fork/restore/merge timeline;
 - historical replay/fork;
 - OpenTelemetry export.
+
+G15 builds deep forensic/debugging workflows on top of the production interaction primitives established by G13 rather than postponing the basic product UI until observability work.
 
 ---
 
@@ -802,6 +985,8 @@ recursive subagents
 
 G6 added model/resource scheduling and restart-safe model-budget accounting. G7 adds isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8–G10 build on this substrate with cognitive forks, epistemic memory and typed context faults.
 
+**G13 is the deliberate productization generation:** it turns these runtime primitives into a polished interactive terminal workspace inspired by the best modern coding-agent UX while preserving go-agent's daemon durability, inspectability and headless parity. G14 then expands execution across remote workers; G15 adds deep production observability/time-travel debugging.
+
 ---
 
 # Testing philosophy
@@ -821,7 +1006,8 @@ Use deterministic fake providers and fake Worlds for:
 - slow consumers;
 - crash recovery;
 - Truth Maintenance propagation;
-- scheduler fairness.
+- scheduler fairness;
+- TUI projection/virtualization and reconnect behavior.
 
 Real-model tests evaluate harness/model quality separately.
 
