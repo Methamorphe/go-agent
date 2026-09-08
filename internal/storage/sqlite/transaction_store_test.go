@@ -72,7 +72,7 @@ func TestG7TransactionStateAndPreparedPlanSurviveReopen(t *testing.T) {
 	if _, err := store.Transition(ctx, tx.ID, ready.Version, []agenttx.State{agenttx.StateReadyToCommit}, agenttx.StateCommitting, plan, "", "stale", nil); !errors.Is(err, agenttx.ErrConflict) {
 		t.Fatalf("stale transition err=%v", err)
 	}
-	events, err := store.Events(ctx, tx.ID)
+	events, err := store.TransactionEvents(ctx, tx.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
