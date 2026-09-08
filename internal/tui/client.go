@@ -95,3 +95,9 @@ func (c *Client) Resume(ctx context.Context, agentID id.AgentID, expected uint64
 	}, &response)
 	return response.Process, err
 }
+
+func (c *Client) OperateTransaction(ctx context.Context, request controlapi.WorkspaceTransactionOperateRequest) (controlapi.WorkspaceTransactionOperateResponse, error) {
+	var response controlapi.WorkspaceTransactionOperateResponse
+	err := c.call(ctx, controlapi.MessageWorkspaceTransactionOperate, request, &response)
+	return response, err
+}

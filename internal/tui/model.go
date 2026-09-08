@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Methamorphe/go-agent/internal/agent"
+	controlapi "github.com/Methamorphe/go-agent/internal/control/api"
 	"github.com/Methamorphe/go-agent/internal/id"
 	"github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/workspace"
@@ -23,6 +24,7 @@ type runtimeClient interface {
 	SendMessage(context.Context, id.AgentID, string, agent.MessageQueue) (agent.SendMessageResult, error)
 	Suspend(context.Context, id.AgentID, uint64, string) (process.State, error)
 	Resume(context.Context, id.AgentID, uint64, string) (process.State, error)
+	OperateTransaction(context.Context, controlapi.WorkspaceTransactionOperateRequest) (controlapi.WorkspaceTransactionOperateResponse, error)
 }
 
 type overlay int
@@ -113,6 +115,12 @@ type mutationMsg struct {
 type sendMsg struct {
 	result agent.SendMessageResult
 	queue  agent.MessageQueue
+	err    error
+}
+
+type transactionMsg struct {
+	result controlapi.WorkspaceTransactionOperateResponse
+	label  string
 	err    error
 }
 
@@ -231,6 +239,16 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = msg.label
 		m.err = nil
 		return m, m.refreshCmd(true)
+	case transactionMsg:
+		m.loading = false
+		if msg.err != nil {
+			m.err = msg.err
+			m.status = msg.label + " failed"
+			return m, nil
+		}
+		m.status = msg.label + " · " + string(msg.result.Transaction.State)
+		m.err = nil
+		return m, m.refreshCmd(true)
 	case tickMsg:
 		cmds := []tea.Cmd{m.tickCmd()}
 		if m.rootID != "" && !m.loading {
@@ -244,7 +262,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	key := msg.String()
+	key := m.cfg.normalizeKey(msg.String())
 	if key == "ctrl+c" {
 		return m, tea.Quit
 	}
@@ -384,7 +402,7 @@ func (m Model) reviewLength() int {
 }
 
 func (m Model) updateOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	key := msg.String()
+	key := m.cfg.normalizeKey(msg.String())
 	switch key {
 	case "esc":
 		m.overlay = overlayNone
@@ -423,6 +441,7 @@ func (m Model) updateOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 	m.overlay = overlayNone
 	m.overlayInput = ""
+	command = m.cfg.expandCommand(command)
 	rawFields := strings.Fields(command)
 	if len(rawFields) == 0 {
 		return m, nil
@@ -500,8 +519,14 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 		}
 	case "suspend", "resume":
 		return m.toggleSuspend()
-	case "transactions", "transaction", "tx":
+	case "transactions":
 		m.inspectorTab = inspectorTransactions
+	case "transaction", "tx":
+		if len(rawFields) == 1 {
+			m.inspectorTab = inspectorTransactions
+			break
+		}
+		return m.executeTransactionCommand(rawFields[1:])
 	case "forks", "fork":
 		m.inspectorTab = inspectorForks
 	case "context", "mmu":
@@ -525,6 +550,97 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 		m.status = "unknown palette command: " + verb
 	}
 	return m, nil
+}
+
+func (m Model) executeTransactionCommand(args []string) (tea.Model, tea.Cmd) {
+	if len(args) == 0 {
+		m.inspectorTab = inspectorTransactions
+		return m, nil
+	}
+	operation := strings.ToLower(args[0])
+	req := controlapi.WorkspaceTransactionOperateRequest{}
+	var label string
+
+	switch operation {
+	case "verify":
+		if len(args) < 2 {
+			m.status = "usage: tx verify [transaction-id] <command> [args...]"
+			return m, nil
+		}
+		index := 1
+		if looksLikeTransactionID(args[index]) {
+			req.TransactionID = id.TransactionID(args[index])
+			index++
+		} else {
+			req.TransactionID = m.selectedTransactionID()
+		}
+		if req.TransactionID == "" || index >= len(args) {
+			m.status = "tx verify requires a transaction and command"
+			return m, nil
+		}
+		req.Operation = controlapi.WorkspaceTransactionVerify
+		req.Command = append([]string(nil), args[index:]...)
+		label = "transaction verified"
+	case "prepare", "commit", "rollback", "reconcile":
+		if len(args) > 1 {
+			req.TransactionID = id.TransactionID(args[1])
+		} else {
+			req.TransactionID = m.selectedTransactionID()
+		}
+		if req.TransactionID == "" {
+			m.status = "no transaction selected"
+			return m, nil
+		}
+		switch operation {
+		case "prepare":
+			req.Operation, label = controlapi.WorkspaceTransactionPrepare, "transaction prepared"
+		case "commit":
+			req.Operation, label = controlapi.WorkspaceTransactionCommit, "transaction committed"
+		case "rollback":
+			req.Operation, label = controlapi.WorkspaceTransactionRollback, "transaction rolled back"
+		case "reconcile":
+			req.Operation, label = controlapi.WorkspaceTransactionReconcile, "transaction reconciled"
+		}
+	case "resolve":
+		if len(args) < 5 {
+			m.status = "usage: tx resolve <transaction-id> <effect-id> applied|absent <evidence>"
+			return m, nil
+		}
+		req.TransactionID = id.TransactionID(args[1])
+		req.Operation = controlapi.WorkspaceTransactionResolve
+		req.EffectID = id.EffectRecordID(args[2])
+		switch strings.ToLower(args[3]) {
+		case "applied":
+			req.Certainty = "known_applied"
+		case "absent":
+			req.Certainty = "known_absent"
+		default:
+			m.status = "tx resolve certainty must be applied or absent"
+			return m, nil
+		}
+		req.Evidence = strings.Join(args[4:], " ")
+		label = "transaction effect resolved"
+	default:
+		m.status = "tx operation: verify|prepare|commit|rollback|reconcile|resolve"
+		return m, nil
+	}
+
+	m.loading = true
+	m.inspectorTab = inspectorTransactions
+	m.status = label + "…"
+	return m, m.transactionCmd(req, label)
+}
+
+func looksLikeTransactionID(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(lower, "txn_") || strings.HasPrefix(lower, "tx_")
+}
+
+func (m Model) selectedTransactionID() id.TransactionID {
+	if len(m.inspector.Transactions) == 0 {
+		return ""
+	}
+	return m.inspector.Transactions[0].ID
 }
 
 func (m Model) planReviewTarget() (string, string) {
@@ -763,6 +879,16 @@ func (m Model) sendCmd(text string, queue agent.MessageQueue) tea.Cmd {
 		}
 		result, err := m.client.SendMessage(m.ctx, focusID, text, queue)
 		return sendMsg{result: result, queue: queue, err: err}
+	}
+}
+
+func (m Model) transactionCmd(request controlapi.WorkspaceTransactionOperateRequest, label string) tea.Cmd {
+	return func() tea.Msg {
+		if m.client == nil {
+			return transactionMsg{label: label, err: context.Canceled}
+		}
+		result, err := m.client.OperateTransaction(m.ctx, request)
+		return transactionMsg{result: result, label: label, err: err}
 	}
 }
 

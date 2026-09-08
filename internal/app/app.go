@@ -88,6 +88,7 @@ func (a *App) Run(ctx context.Context) error {
 		return fmt.Errorf("initialize cognitive scheduler: %w", err)
 	}
 	workspaceService := workspace.New(store, a.clock.Now)
+	transactionOperator := newG13TransactionOperator(store, processes, ids, a.clock.Now)
 	processSupervisor := supervisor.New(a.logger, processes, a.clock, runtimeID)
 
 	if err := processSupervisor.Recover(ctx); err != nil {
@@ -120,7 +121,7 @@ func (a *App) Run(ctx context.Context) error {
 	baseHandler := newControlHandler(store, processes, a.clock.Now)
 	orchestrationHandler := newG5ControlHandler(baseHandler, orchestrator)
 	agentHandler := newG2ControlHandler(orchestrationHandler, agentRunner)
-	handler := newG13ControlHandler(agentHandler, workspaceService)
+	handler := newG13ControlHandler(agentHandler, workspaceService, transactionOperator)
 	server := control.NewServer(a.logger, handler, a.cfg.MaxFrameBytes, a.cfg.MaxControlConnections)
 
 	runtimeCtx, cancelRuntime := context.WithCancel(ctx)

@@ -16,7 +16,11 @@ type g13WorkspaceCommands interface {
 	Search(context.Context, workspace.SearchRequest) (workspace.SearchResult, error)
 }
 
-func newG13ControlHandler(base control.Handler, workspaces g13WorkspaceCommands) control.Handler {
+type g13TransactionCommands interface {
+	Operate(context.Context, controlapi.WorkspaceTransactionOperateRequest) (controlapi.WorkspaceTransactionOperateResponse, error)
+}
+
+func newG13ControlHandler(base control.Handler, workspaces g13WorkspaceCommands, transactions g13TransactionCommands) control.Handler {
 	return control.HandlerFunc(func(ctx context.Context, request protocol.Envelope) (protocol.Envelope, error) {
 		switch request.Type {
 		case controlapi.TypeWorkspaceAttach:
@@ -62,6 +66,17 @@ func newG13ControlHandler(base control.Handler, workspaces g13WorkspaceCommands)
 				return protocol.Envelope{}, err
 			}
 			return response(request, controlapi.WorkspaceSearchResponse{Result: result})
+
+		case controlapi.TypeWorkspaceTransactionOperate:
+			payload, err := decodeControlPayload[controlapi.WorkspaceTransactionOperateRequest](request.Payload)
+			if err != nil {
+				return protocol.Envelope{}, err
+			}
+			result, err := transactions.Operate(ctx, payload)
+			if err != nil {
+				return protocol.Envelope{}, err
+			}
+			return response(request, result)
 
 		default:
 			return base.Handle(ctx, request)
