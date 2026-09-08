@@ -11,9 +11,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Methamorphe/go-agent/internal/app"
 	"github.com/Methamorphe/go-agent/internal/config"
 	"github.com/Methamorphe/go-agent/internal/control"
 	"github.com/Methamorphe/go-agent/internal/id"
+	"github.com/Methamorphe/go-agent/internal/logging"
 	"github.com/Methamorphe/go-agent/internal/tui"
 	"github.com/Methamorphe/go-agent/internal/workspace"
 )
@@ -28,16 +30,24 @@ func run(args []string) int {
 
 	var dataDir string
 	var controlAddress string
+	var logLevel string
+	var pprofAddress string
 	var agentID string
 	var mode string
 	var theme string
 	var uiConfigPath string
+	var runtimeDaemon bool
+
 	flags.StringVar(&dataDir, "data-dir", "", "runtime data directory")
 	flags.StringVar(&controlAddress, "control-address", "", "unix socket or Windows named pipe")
+	flags.StringVar(&logLevel, "log-level", "", "debug|info|warn|error")
+	flags.StringVar(&pprofAddress, "pprof-address", "", "explicit loopback address for runtime profiling")
 	flags.StringVar(&agentID, "agent", "", "Agent Process to attach; latest root when omitted")
 	flags.StringVar(&mode, "mode", "ACT", "ASK|PLAN|ACT|REVIEW|OBSERVE")
 	flags.StringVar(&theme, "theme", "", "dark|light; overrides the UI profile")
 	flags.StringVar(&uiConfigPath, "ui-config", "", "JSON TUI customization profile")
+	flags.BoolVar(&runtimeDaemon, "runtime-daemon", false, "internal: run the detached durable runtime")
+
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -55,10 +65,38 @@ func run(args []string) int {
 	if visited["control-address"] {
 		overrides.ControlAddress = &controlAddress
 	}
+	if visited["log-level"] {
+		overrides.LogLevel = &logLevel
+	}
+	if visited["pprof-address"] {
+		overrides.PprofAddress = &pprofAddress
+	}
+
 	cfg, err := config.Load("", overrides)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "configuration error:", err)
 		return 2
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if runtimeDaemon {
+		logger, err := logging.New(os.Stderr, cfg.LogLevel)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "logging configuration error:", err)
+			return 2
+		}
+		if err := app.New(logger, cfg).Run(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "runtime error:", err)
+			return 1
+		}
+		return 0
+	}
+
+	if err := ensureRuntime(ctx, cfg); err != nil {
+		fmt.Fprintln(os.Stderr, "runtime startup error:", err)
+		return 1
 	}
 
 	workspaceMode := workspace.Mode(strings.ToUpper(strings.TrimSpace(mode)))
@@ -66,6 +104,7 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, "--mode must be ASK, PLAN, ACT, REVIEW, or OBSERVE")
 		return 2
 	}
+
 	uiConfig := tui.DefaultConfig()
 	uiConfig.AgentID = id.AgentID(strings.TrimSpace(agentID))
 	uiConfig.Mode = workspaceMode
@@ -91,8 +130,6 @@ func run(args []string) int {
 		}
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	controlClient := control.NewClient(cfg.ControlAddress, cfg.MaxFrameBytes, id.NewGenerator())
 	client := tui.NewControlClient(controlClient)
 	model := tui.NewModel(ctx, client, uiConfig)
