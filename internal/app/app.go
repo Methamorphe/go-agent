@@ -182,8 +182,8 @@ func (a *App) Run(ctx context.Context) error {
 	}
 }
 
-func (a *App) checkpointStore(store interface{ Checkpoint(context.Context) error }) error {
+func (a *App) checkpointStore(store interface{ CheckpointWAL(context.Context) error }) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	return store.Checkpoint(shutdownCtx)
+	return store.CheckpointWAL(shutdownCtx)
 }
