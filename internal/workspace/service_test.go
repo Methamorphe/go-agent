@@ -99,6 +99,7 @@ func (f *fakeProjectionStore) WorkspaceEventsAfter(_ context.Context, agentID id
 				break
 			}
 		}
+	}
 	return result, nil
 }
 
