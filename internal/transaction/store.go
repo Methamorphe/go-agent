@@ -25,7 +25,7 @@ type Store interface {
 	CreateEffect(context.Context, EffectRecord, string, json.RawMessage) error
 	UpdateEffect(context.Context, id.EffectRecordID, EffectState, OutcomeCertainty, string, string, json.RawMessage) error
 	CreateVerification(context.Context, Verification, string, json.RawMessage) error
-	Events(context.Context, id.TransactionID) ([]Event, error)
+	TransactionEvents(context.Context, id.TransactionID) ([]Event, error)
 	ListByStates(context.Context, ...State) ([]Transaction, error)
 }
 
