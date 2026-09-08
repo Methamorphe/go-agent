@@ -142,6 +142,9 @@ func validateLimits(l Limits, members int) error {
 	if l.MaxMembers > hardMaxMembers || l.MaxRounds > hardMaxRounds || l.MaxTurns > hardMaxTurns {
 		return errs.New(errs.CodeResourceExhausted, "team.propose", "team limits exceed G11 hard bounds")
 	}
+	if l.MaxMembers < 1 || l.MaxRounds < 1 || l.MaxTurns < 2 {
+		return errs.New(errs.CodeInvalidArgument, "team.propose", "team and negotiation limits are too small")
+	}
 	if members > l.MaxMembers || l.MaxParallelism > l.MaxMembers || l.MaxParallelism <= 0 {
 		return errs.New(errs.CodeResourceExhausted, "team.propose", "team topology exceeds configured bounds")
 	}
