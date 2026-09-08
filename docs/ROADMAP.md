@@ -10,7 +10,7 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is complete. G8 is ready.**
 
 See:
 
@@ -23,6 +23,7 @@ See:
 - `G4_EXIT_REVIEW.md`;
 - `G5_EXIT_REVIEW.md`;
 - `G6_EXIT_REVIEW.md`;
+- `G7_EXIT_REVIEW.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
@@ -533,7 +534,7 @@ See `G6_EXIT_REVIEW.md` and `COGNITIVE_SCHEDULER_V0.md`.
 
 ---
 
-# G7 — Workspace/OCI World + Agent Transactions 🟢 READY
+# G7 — Workspace/OCI World + Agent Transactions ✅ COMPLETE
 
 ## Goal
 
@@ -573,9 +574,23 @@ commit / rollback / reconcile
 - crash during APPLY enters reconciliation, never false commit;
 - irreversible effect cannot be falsely rolled back.
 
+## G7 result
+
+**PASS.**
+
+G7 implements a Git-aware `WorkspaceWorld` that captures tracked dirty/untracked base state without mutating the user's index, isolates mutations in detached worktrees, detects target divergence and performs promotion through an explicit three-way Git merge with a short target-scoped promotion lease.
+
+The OCI adapter provides controlled bind mounts, network-off/read-only/cap-drop/no-new-privileges defaults, optional CPU/memory/PID/time limits and model-opaque secret-file binding. Its Profile deliberately reports snapshot/fork/promotion as unsupported until those guarantees can be proven rather than faking transaction semantics.
+
+Agent Transactions persist their state, prepared promotion plans, effects, verifications and audit events in SQLite migration `0007_agent_transactions.sql`. The runtime records DISPATCH before crossing the World boundary, defers irreversible effects, sends unknown dispatched outcomes to `NEEDS_RECONCILIATION`, prevents false rollback of unresolved/externally visible effects and revalidates current policy/capability through a commit guard before PREPARE and COMMIT.
+
+Implementation head `da1ce88159bf8f3d51606222fb64413827dd2743` passed GitHub Actions run `34203844173` across Ubuntu/macOS/Windows plus the race detector. Long-duration workflow run `34203844315` also passed on that implementation head.
+
+See `G7_EXIT_REVIEW.md`.
+
 ---
 
-# G8 — Cognitive Fork / Safe Execution Editing
+# G8 — Cognitive Fork / Safe Execution Editing 🟢 READY
 
 ## Goal
 
@@ -785,7 +800,7 @@ bounded context
 recursive subagents
 ```
 
-G6 adds model/resource scheduling and restart-safe model-budget accounting. Polish must not prevent progression toward G7–G10, where transactions/forks, epistemic memory and typed context faults deepen the differentiation.
+G6 added model/resource scheduling and restart-safe model-budget accounting. G7 adds isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8–G10 build on this substrate with cognitive forks, epistemic memory and typed context faults.
 
 ---
 
@@ -816,17 +831,18 @@ Long-duration validation uses tagged provider-free soak scenarios and explicit b
 
 # Immediate next step
 
-**G7 — Workspace/OCI World + Agent Transactions is READY.**
+**G8 — Cognitive Fork / Safe Execution Editing is READY.**
 
-Build isolated and reversible execution on top of the durable process, authority/effect, MMU, recursive-orchestration and Cognitive Scheduler foundations with:
+Build safe alternative execution timelines on top of G7's isolated World and transaction substrate with:
 
-- a Git-aware WorkspaceWorld with explicit dirty/untracked base policy;
-- OCI execution with controlled mounts, restricted network and CPU/memory/time limits;
-- explicit World snapshot/fork guarantees;
-- transaction `begin → execute → verify → prepare → commit/rollback/reconcile` boundaries;
-- target-divergence detection and three-way promotion;
-- crash recovery at every transaction boundary;
-- reconciliation for uncertain APPLY outcomes;
-- hard prevention of false rollback claims for irreversible effects.
+- forkable quiescent checkpoints and explicit Execution Frontier;
+- branch Agent identity plus isolated World state when mutation is possible;
+- copy-on-write context/memory overlays;
+- independent bounded budget reservations;
+- objective branch evaluation;
+- three-way World promotion relative to an explicit base;
+- selective cognitive promotion rather than transcript union;
+- restore-as-new-timeline semantics that never truncate observed history;
+- cleanup/retention and promotion-lease integration.
 
-G7 must preserve the existing kernel invariant: **transactions may add isolation/reversibility only where the World/Profile can actually guarantee it; they must never rewrite observed history or pretend an irreversible external effect was undone.**
+G8 must preserve the existing kernel invariant: **time travel may change what an Agent does next, but it cannot rewrite what the World already observed.**
