@@ -22,7 +22,7 @@ G13 READY
 
 ## Current generation
 
-**G12 — Verified Continual Improvement: COMPLETE, subject to the final repository CI closure gate.**
+**G12 — Verified Continual Improvement: COMPLETE.**
 
 G12 adds controlled self-improvement as immutable, versioned experimentation rather than mutable runtime personality. The system can now evaluate and promote cognitive artifacts while preserving every authority, scope, safety and historical-attribution invariant established in G0–G11.
 
@@ -56,16 +56,16 @@ See:
 
 ## Validation note
 
-The G12 feature branch includes the full contract and durability tests. The repository cross-platform GitHub Actions matrix remains the authoritative closure gate; once green, `G12_EXIT_REVIEW.md` can be marked unconditional `PASS`.
+GitHub Actions run `34224392815` passed the G12 implementation head across Linux, macOS and Windows, including the race detector, vet, builds and Linux soak compile gate.
 
 ## Long-duration / scale validation
 
 ```text
-G12 IMP contract/killer tests   IMPLEMENTED
-durable restart replay         IMPLEMENTED
-atomic canary bound             IMPLEMENTED
-cross-platform CI              PENDING FINAL GATE
-race detector                  PENDING FINAL GATE
+G12 IMP contract/killer tests   PASS
+durable restart replay         PASS
+atomic canary bound             PASS
+cross-platform CI              PASS
+race detector                  PASS
 1h reference run               PENDING
 8h reference run               PENDING
 24h reference run              PENDING
