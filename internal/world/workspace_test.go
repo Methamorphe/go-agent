@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Methamorphe/go-agent/internal/id"
@@ -25,10 +26,10 @@ func TestWorkspaceWorldCapturesDirtyAndUntrackedBase(t *testing.T) {
 	}
 	defer workspace.Rollback(ctx)
 
-	if got := readWorldFile(t, workspace, "tracked.txt"); got != "dirty\n" {
+	if got := normalizeTestEOL(readWorldFile(t, workspace, "tracked.txt")); got != "dirty\n" {
 		t.Fatalf("tracked dirty base=%q", got)
 	}
-	if got := readWorldFile(t, workspace, "untracked.txt"); got != "included\n" {
+	if got := normalizeTestEOL(readWorldFile(t, workspace, "untracked.txt")); got != "included\n" {
 		t.Fatalf("untracked base=%q", got)
 	}
 	_, err = workspace.Execute(ctx, Action{Kind: "fs.read_file", Resource: "secret.ignored", Effect: CanonicalEffect("fs.read_file")})
@@ -68,10 +69,10 @@ func TestWorkspaceWorldThreeWayPromotionPreservesNonOverlappingTargetChange(t *t
 	if err := workspace.Finalize(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got := readTestFile(t, repo, "target.txt"); got != "target-change\n" {
+	if got := normalizeTestEOL(readTestFile(t, repo, "target.txt")); got != "target-change\n" {
 		t.Fatalf("target change lost: %q", got)
 	}
-	if got := readTestFile(t, repo, "source.txt"); got != "source-change\n" {
+	if got := normalizeTestEOL(readTestFile(t, repo, "source.txt")); got != "source-change\n" {
 		t.Fatalf("source promotion missing: %q", got)
 	}
 }
@@ -91,7 +92,7 @@ func TestWorkspaceWorldConflictingTargetDivergenceBlocksPromotion(t *testing.T) 
 	if !errors.Is(err, ErrPromotionConflict) {
 		t.Fatalf("prepare err=%v, want promotion conflict", err)
 	}
-	if got := readTestFile(t, repo, "same.txt"); got != "target\n" {
+	if got := normalizeTestEOL(readTestFile(t, repo, "same.txt")); got != "target\n" {
 		t.Fatalf("conflict mutated target: %q", got)
 	}
 }
@@ -212,4 +213,8 @@ func readTestFile(t *testing.T, root, path string) string {
 		t.Fatal(err)
 	}
 	return string(body)
+}
+
+func normalizeTestEOL(value string) string {
+	return strings.ReplaceAll(value, "\r\n", "\n")
 }
