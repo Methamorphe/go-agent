@@ -1,6 +1,6 @@
 # G11 Exit Review — Adaptive Teams + Agent Negotiation
 
-Status: **PENDING FINAL CI GATE**
+Status: **PASS**
 
 ## Scope delivered
 
@@ -73,16 +73,16 @@ The G11 tests cover:
 - negotiation cannot mint capabilities or weaken Intent/Effect/World enforcement;
 - no unbounded dialogue queue or transcript is introduced.
 
-## Validation gate
+## CI gate
 
-G11 is complete only after the final repository CI head passes:
+PASS on the G11 implementation head before closure:
 
 ```text
-go test ./...
-go test -race ./...
-go test -tags soak ./internal/soaktest -run '^$'
-go vet ./...
-go build ./cmd/go-agent ./cmd/go-agentctl
+go test ./...                                      PASS (Linux/macOS/Windows)
+go test -race ./...                                PASS
+go test -tags soak ./internal/soaktest -run '^$'  PASS (Linux compile gate)
+go vet ./...                                       PASS (Linux/macOS/Windows)
+go build ./cmd/go-agent ./cmd/go-agentctl          PASS (Linux/macOS/Windows)
 ```
 
-The cross-platform GitHub Actions matrix is the authoritative closure gate. Until that final head is green, this document remains `PENDING FINAL CI GATE`.
+The repository cross-platform GitHub Actions matrix is the authoritative G11 closure gate.
