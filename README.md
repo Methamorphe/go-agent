@@ -18,14 +18,24 @@ G4  Cognitive MMU v0                          COMPLETE
 G5  Recursive Agent Processes                 COMPLETE
 G6  Cognitive Scheduler v0                    COMPLETE
 G7  Workspace/OCI World + Agent Transactions  COMPLETE
-G8  Cognitive Fork / Safe Execution Editing   READY
+G8  Cognitive Fork / Safe Execution Editing   COMPLETE
+G9  Epistemic Memory + Truth Maintenance      COMPLETE
+G10 Context Faults + Cognitive MMU v2          COMPLETE
+G11 Adaptive Teams + Agent Negotiation         COMPLETE
+G12 Verified Continual Improvement             COMPLETE
+G13 Production TUI / Interactive Workspace     COMPLETE
+G14 Wails v3 Desktop GUI / Agent Workspace     READY
+G15 Distributed Worlds / Workers               PLANNED
+G16 Production Observability / Time-Travel     PLANNED
 ```
 
-G7 is closed and validated. The integrated G0–G7 runtime passes cross-platform tests/vet/builds and the race detector, with restart-safe durable transaction state, Git-aware isolated WorkspaceWorld promotion, conservative OCI execution guarantees, effect/outcome reconciliation and the existing scheduler/MMU/orchestration foundations intact. The next implementation generation is **G8 — Cognitive Fork / Safe Execution Editing**.
+G13 is closed and validated. The immediate implementation target is **G14 — Wails v3 Desktop GUI / Agent Workspace**: a modern, fluid, lightweight graphical client over the same durable daemon used by the TUI.
 
-See [Current Generation](docs/CURRENT_GENERATION.md), the generation exit reviews, and the [Implementation Roadmap](docs/ROADMAP.md).
+The project intentionally chooses **Wails v3 even while it remains beta**. There is no planned Wails v2 fallback; instead, the GUI generation requires exact v3 pinning, reproducible tooling, cross-platform smoke/CI coverage and rollback to a previous known-good v3 pin if an upstream beta regression occurs.
 
-The runtime is explicitly designed for **long-lived stability**: agent history may grow for hours or days, but hot memory, active LLM context and terminal rendering work must remain bounded.
+See [Current Generation](docs/CURRENT_GENERATION.md), [G14 Wails Desktop GUI](docs/G14_WAILS_DESKTOP_GUI.md), the generation exit reviews, and the [Implementation Roadmap](docs/ROADMAP.md).
+
+The runtime is explicitly designed for **long-lived stability**: agent history may grow for hours or days, but hot memory, active LLM context and presentation work must remain bounded.
 
 ## Vision
 
@@ -71,20 +81,20 @@ Applications / Harnesses
    Browser / Python / MCP / …
 ```
 
-The interactive architecture deliberately separates the terminal from the runtime:
+The interactive architecture deliberately separates presentation clients from the runtime:
 
 ```text
-Thin TUI / future IDE/Web clients
-              │
-          local IPC
-              │
-              ▼
-      Durable Runtime Daemon
-              │
-     SQLite + Object Store
+TUI / Wails v3 GUI / future IDE/Web clients
+                    │
+                local IPC
+                    │
+                    ▼
+            Durable Runtime Daemon
+                    │
+           SQLite + Object Store
 ```
 
-Closing or crashing the TUI must not kill an active agent.
+Closing or crashing a presentation client must not kill an active agent.
 
 ## Why Go?
 
@@ -116,11 +126,11 @@ Python remains useful as an **Execution World** when a persistent REPL, notebook
 9. **Models are schedulable compute resources.** Model identity is not Agent identity.
 10. **Self-improvement must be evaluated, versioned and reversible.**
 11. **The runtime should remain useful beyond coding agents.**
-12. **The product name and final UX are intentionally deferred until the runtime is real.**
-13. **Hot state is bounded.** History can grow; RAM/context/TUI work must not scale linearly with lifetime history.
+12. **The product name and final UX remain product decisions layered over a stable runtime.**
+13. **Hot state is bounded.** History can grow; RAM/context/presentation work must not scale linearly with lifetime history.
 14. **Backpressure is explicit.** No hidden unbounded queue is allowed in runtime hot paths.
 15. **Unknown is a real state.** Partial external failures are never rewritten as false success/failure certainty.
-16. **Presentation is disposable.** The terminal is a client, never the owner of canonical agent state.
+16. **Presentation is disposable.** TUI and GUI are clients, never owners of canonical agent state.
 17. **Restore never rewrites history.** Execution edits create new timelines and preserve already-observed effects.
 18. **Evidence survives consolidation.** Memory transformations cannot launder provenance.
 19. **Intent and capability are separate authorization dimensions.**
@@ -148,12 +158,38 @@ The architecture currently defines these primitives:
 - **Verified Continual Improvement** — versioned hypothesis/evaluation/shadow/canary/promotion/rollback lifecycle.
 - **Safe Execution Editing** — checkpoint/fork/restore/merge semantics with causal frontier and uncertain-effect handling.
 
+## Product clients
+
+### Production TUI
+
+G13 provides a fullscreen Bubble Tea v2 workspace with durable attach/detach, ASK/PLAN/ACT/REVIEW/OBSERVE modes, multi-Agent navigation, bounded history virtualization, plan/diff review, transaction/fork controls and runtime inspectors.
+
+### Wails v3 Desktop GUI
+
+G14 is the next productization layer. The desktop GUI targets:
+
+- modern three-pane Agent workspace;
+- fluid streaming and navigation;
+- tasteful 100–220 ms class state transitions where appropriate;
+- strong keyboard and mouse UX;
+- command palette;
+- session and Agent navigation;
+- plan/diff/file/runtime inspectors;
+- dark/light/system themes and reduced-motion support;
+- bounded frontend queues/caches and virtualized long histories;
+- low startup/RAM/binary footprint;
+- macOS, Windows and Linux builds;
+- strict daemon authority/state ownership parity with the TUI.
+
+The interaction language takes inspiration from successful agentic products such as Hermes and Goose without cloning their visual identity.
+
 ## Documentation
 
 ### Start here
 
 - [Current implementation generation](docs/CURRENT_GENERATION.md)
 - [Implementation roadmap](docs/ROADMAP.md)
+- [G14 Wails v3 Desktop GUI](docs/G14_WAILS_DESKTOP_GUI.md)
 - [A0 Exit Review — architecture gate result](docs/A0_EXIT_REVIEW.md)
 - [G0 Exit Review — foundation gate result](docs/G0_EXIT_REVIEW.md)
 - [G1 Exit Review — Durable Agent Process + Event Ledger](docs/G1_EXIT_REVIEW.md)
@@ -163,6 +199,13 @@ The architecture currently defines these primitives:
 - [G5 Exit Review — Recursive Agent Processes](docs/G5_EXIT_REVIEW.md)
 - [G6 Exit Review — Cognitive Scheduler v0](docs/G6_EXIT_REVIEW.md)
 - [G7 Exit Review — Workspace/OCI World + Agent Transactions](docs/G7_EXIT_REVIEW.md)
+- [G8 Exit Review — Cognitive Fork / Safe Execution Editing](docs/G8_EXIT_REVIEW.md)
+- [G9 Exit Review — Epistemic Memory + Truth Maintenance](docs/G9_EXIT_REVIEW.md)
+- [G10 Exit Review — Context Faults + Cognitive MMU v2](docs/G10_EXIT_REVIEW.md)
+- [G11 Exit Review — Adaptive Teams + Agent Negotiation](docs/G11_EXIT_REVIEW.md)
+- [G12 Exit Review — Verified Continual Improvement](docs/G12_EXIT_REVIEW.md)
+- [G13 Exit Review — Production TUI / Interactive Agent Workspace](docs/G13_EXIT_REVIEW.md)
+- [Production TUI workspace](docs/PRODUCTION_TUI_WORKSPACE.md)
 - [Cognitive Scheduler v0 runtime configuration](docs/COGNITIVE_SCHEDULER_V0.md)
 - [Long-duration benchmark suite](docs/LONG_DURATION_BENCHMARKS.md)
 - [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
@@ -227,17 +270,17 @@ bounded queues
 streaming tool/model I/O
 large payloads in object storage
 snapshots + tail replay
-paginated/virtualized TUI history
+paginated/virtualized TUI/GUI history
 coalesced token rendering
 centralized durable timers
 explicit concurrency/resource budgets
 ```
 
-The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic large histories. The executable long-duration baseline covers real SQLite reopen/checkpoint durability, Cognitive MMU boundedness against a persisted large corpus, restart-safe scheduler budget accounting and G7 transaction restart/reconciliation invariants; representative 1h/8h/24h runs remain empirical validation work.
+The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-client tests, multi-GB tool-output tests and synthetic large histories.
 
 ## Implemented runtime baseline
 
-The current G0–G7 implementation includes:
+The current G0–G13 implementation includes:
 
 ```text
 Go kernel
@@ -251,12 +294,17 @@ Durable Agent Process + Event Ledger
 provider-neutral invocation layer + streaming
 Agent Syscalls
 LocalWorld + authority/effect gate
-Cognitive MMU v0
+Cognitive MMU + Context Faults
+Epistemic Memory + Truth Maintenance
 Recursive Agent Processes + hierarchical budgets
-Cognitive Scheduler v0 + durable root model budgets
+Cognitive Scheduler + durable root model budgets
 Git-aware isolated WorkspaceWorld + three-way promotion
 OCIWorld with conservative isolation/resource defaults
 Durable Agent Transactions + effect/outcome reconciliation
+Cognitive Fork / Safe Execution Editing
+Adaptive Teams + Agent Negotiation
+Verified Continual Improvement
+Production Bubble Tea v2 TUI workspace
 ```
 
 ## Scope
@@ -274,6 +322,7 @@ Durable Agent Transactions + effect/outcome reconciliation
 - context virtualization and structured memory;
 - capability/security model;
 - speculative forks and transactional workflows;
+- production terminal and desktop clients;
 - observability and replay;
 - distributed execution later.
 
@@ -283,14 +332,13 @@ Durable Agent Transactions + effect/outcome reconciliation
 - supporting every model provider from day one;
 - shipping dozens of chat integrations;
 - building a generic no-code automation platform;
-- inventing a GUI before the kernel is sound;
 - allowing unconstrained autonomous production changes.
 
 ## Status
 
-**A0–G7 complete. G8 — Cognitive Fork / Safe Execution Editing ready.**
+**A0–G13 complete. G14 — Wails v3 Desktop GUI / Agent Workspace ready.**
 
-The next implementation step is to build forkable quiescent checkpoints, isolated branch Agent/World state, branch-local cognitive overlays, objective evaluation and selective three-way promotion without rewriting history or weakening the transaction/effect guarantees established by G7.
+The next implementation step is to build the first-class graphical desktop client on Wails v3 while preserving the daemon/client separation, authority/effect guarantees, bounded streaming/history behavior, cross-platform reliability and headless/TUI parity already established by the runtime.
 
 ## Naming
 
