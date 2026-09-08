@@ -81,16 +81,21 @@ func (s *Service) Attach(ctx context.Context, request AttachRequest) (Snapshot, 
 	if err != nil {
 		return Snapshot{}, err
 	}
+	cursor, err := s.cursor(ctx, focused.RootAgentID)
+	if err != nil {
+		return Snapshot{}, err
+	}
 
 	return Snapshot{
 		ProtocolVersion: ProtocolVersion,
-		RootAgentID:     focused.RootAgentID,
-		FocusedAgentID:  focused.AgentID,
-		Mode:            mode,
-		Tree:            summarizeTree(tree),
-		Viewport:        viewport,
-		Inspector:       inspector,
-		GeneratedAt:     s.now().UTC(),
+		RootAgentID: focused.RootAgentID,
+		FocusedAgentID: focused.AgentID,
+		Mode: mode,
+		Cursor: cursor,
+		Tree: summarizeTree(tree),
+		Viewport: viewport,
+		Inspector: inspector,
+		GeneratedAt: s.now().UTC(),
 	}, nil
 }
 
@@ -303,6 +308,7 @@ func valueString(value any) string {
 				return nested
 			}
 		}
+	}
 	return ""
 }
 
