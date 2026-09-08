@@ -25,6 +25,9 @@ type BudgetReservationID string
 type WaitID string
 type ForkGroupID string
 type ForkID string
+type EvidenceID string
+type BeliefID string
+type PropagationID string
 
 func (id AgentID) String() string             { return string(id) }
 func (id EventID) String() string             { return string(id) }
@@ -50,3 +53,6 @@ func (id BudgetReservationID) String() string { return string(id) }
 func (id WaitID) String() string              { return string(id) }
 func (id ForkGroupID) String() string         { return string(id) }
 func (id ForkID) String() string              { return string(id) }
+func (id EvidenceID) String() string          { return string(id) }
+func (id BeliefID) String() string            { return string(id) }
+func (id PropagationID) String() string       { return string(id) }
