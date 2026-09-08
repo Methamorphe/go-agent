@@ -83,19 +83,19 @@ type ConversationViewport struct {
 }
 
 type ProcessSummary struct {
-	AgentID       id.AgentID         `json:"agent_id"`
-	RootAgentID   id.AgentID         `json:"root_agent_id"`
-	ParentAgentID *id.AgentID        `json:"parent_agent_id,omitempty"`
-	Depth         uint32             `json:"depth"`
+	AgentID       id.AgentID          `json:"agent_id"`
+	RootAgentID   id.AgentID          `json:"root_agent_id"`
+	ParentAgentID *id.AgentID         `json:"parent_agent_id,omitempty"`
+	Depth         uint32              `json:"depth"`
 	Status        agentprocess.Status `json:"status"`
-	Version       uint64             `json:"version"`
-	Goal          string             `json:"goal,omitempty"`
-	WaitingReason string             `json:"waiting_reason,omitempty"`
-	WaitingRef    string             `json:"waiting_ref,omitempty"`
-	Failure       string             `json:"failure,omitempty"`
-	UpdatedAt     time.Time          `json:"updated_at"`
-	CreatedAt     time.Time          `json:"created_at"`
-	Children      int                `json:"children"`
+	Version       uint64              `json:"version"`
+	Goal          string              `json:"goal,omitempty"`
+	WaitingReason string              `json:"waiting_reason,omitempty"`
+	WaitingRef    string              `json:"waiting_ref,omitempty"`
+	Failure       string              `json:"failure,omitempty"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	CreatedAt     time.Time           `json:"created_at"`
+	Children      int                 `json:"children"`
 }
 
 type Snapshot struct {
@@ -103,6 +103,7 @@ type Snapshot struct {
 	RootAgentID     id.AgentID           `json:"root_agent_id"`
 	FocusedAgentID  id.AgentID           `json:"focused_agent_id"`
 	Mode            Mode                 `json:"mode"`
+	Cursor          uint64               `json:"cursor"`
 	Tree            []ProcessSummary     `json:"tree"`
 	Viewport        ConversationViewport `json:"viewport"`
 	Inspector       Inspector            `json:"inspector"`
@@ -114,6 +115,23 @@ type AttachRequest struct {
 	Mode         Mode       `json:"mode,omitempty"`
 	HistoryLimit int        `json:"history_limit,omitempty"`
 	TreeLimit    int        `json:"tree_limit,omitempty"`
+}
+
+type RefreshRequest struct {
+	RootAgentID    id.AgentID `json:"root_agent_id"`
+	FocusedAgentID id.AgentID `json:"focused_agent_id"`
+	AfterSequence  uint64     `json:"after_sequence"`
+	Limit          int        `json:"limit,omitempty"`
+	Inspector      bool       `json:"inspector,omitempty"`
+}
+
+type Refresh struct {
+	Cursor     uint64           `json:"cursor"`
+	TreePatch  []ProcessSummary `json:"tree_patch"`
+	Blocks     []Block          `json:"blocks"`
+	Inspector  *Inspector       `json:"inspector,omitempty"`
+	Behind     bool             `json:"behind"`
+	GeneratedAt time.Time       `json:"generated_at"`
 }
 
 type HistoryRequest struct {
