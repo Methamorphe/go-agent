@@ -14,66 +14,64 @@ G6  COMPLETE
 G7  COMPLETE
 G8  COMPLETE
 G9  COMPLETE
-G10 READY
+G10 COMPLETE
+G11 READY
 ```
 
 ## Current generation
 
-**G9 — Epistemic Memory + Truth Maintenance: COMPLETE.**
+**G10 — Context Faults + Cognitive MMU v2: COMPLETE.**
 
-G9 replaces flat memory snippets with durable evidence-aware knowledge and localized truth maintenance.
+G10 turns missing cognitive state into explicit, typed, bounded runtime paging events while preserving G4/G6/G9 compatibility and provider independence.
 
 The implementation now includes:
 
-- immutable/versioned Evidence with source/platform provenance;
-- durable Belief lifecycle and history;
-- structured confidence metadata;
-- scope and temporal validity;
-- support, contradiction and dependency relationships;
-- source freshness/version handling;
-- localized evidence→belief and belief→dependent invalidation;
-- durable bounded propagation jobs with restart-safe continuation;
-- cycle-safe traversal and explicit work/depth budgets;
-- indexed adjacency queries rather than mandatory graph-global scans;
-- epistemic retrieval/inspection that preserves confidence, status, provenance and contradictions;
-- Cognitive MMU integration;
-- G8 branch-local epistemic overlays and selective winner-only promotion;
-- authority separation: trusted knowledge never grants runtime capability;
-- SQLite persistence through G9 migrations `0009` and `0010`;
-- MEM-001 → MEM-015 contract tests;
-- tagged million-edge truth-maintenance scale scenario.
+- stable semantic references: `ctx://`, `belief://`, `evidence://`, `object://`, `event://`, `checkpoint://`, `agent://`;
+- all six typed faults: Reference, Recall, Evidence, Freshness, Dependency and Representation;
+- finite one-build context leases for faulted pages;
+- bounded dependency-driven paging with resolver-independent cognitive references;
+- freshness paging through durable supersession chains with cycle detection;
+- structured compaction ↔ raw evidence paging through `SummaryOf`;
+- historical evidence inspection without silently promoting superseded knowledge back to current truth;
+- explicit `NEEDS_COMPACTION_OR_PROJECTION` handling for representations that exceed fault budgets;
+- per-invocation and per-task-window fault budgets;
+- progress-aware repeated-fault/page-set storm protection;
+- append-only lifecycle observability from `DETECTED` through terminal resolution state;
+- durable SQLite current-state journal and lifecycle event history through migration `0011`;
+- crash-safe resolved-fault → next-manifest handoff;
+- G4 manifest integration so resolved faults remain visible/replayable at the next invocation boundary;
+- semantic `belief://` references emitted by G9 MMU projections;
+- G10 contract tests plus durable manifest/lifecycle tests;
+- repaired tagged soak compilation using the dedicated SQLite `CheckpointWAL` maintenance API.
 
-The G9 killer condition is covered by the implementation contract: when source knowledge changes or becomes stale, affected beliefs are downgraded through localized causal propagation and cannot silently remain trusted, while original Evidence versions and Belief history remain inspectable.
+The G10 killer condition is covered by the implementation contract: an invocation can fault on missing/stale/dependent knowledge, the runtime resolves only authorized bounded pages, grants finite leases, records the complete lifecycle, and makes the resolution explicit in the next durable context manifest rather than silently mutating model context.
 
 See:
 
-- `G9_EXIT_REVIEW.md`;
-- `EPISTEMIC_MEMORY_AND_TRUTH_MAINTENANCE.md`;
-- `G8_EXIT_REVIEW.md`.
+- `G10_EXIT_REVIEW.md`;
+- `CONTEXT_FAULTS_AND_COGNITIVE_PAGING.md`;
+- `G9_EXIT_REVIEW.md`.
 
 ## Validation note
 
-Final GitHub Actions CI is intentionally skipped as a G9 exit gate by project decision.
-
-Intermediate CI runs were used diagnostically and exposed a G8 SQLite method-name collision between Cognitive Fork checkpoint lookup and WAL checkpoint maintenance. That integration issue was corrected by keeping the fork `Checkpoint(ctx, checkpointID)` contract and renaming the maintenance operation to `CheckpointWAL(ctx)`.
-
-No final green CI result is claimed where none was observed. G9 closure is based on the implemented contract surface, committed validation suite and explicit project decision to skip final CI.
+G10 uses the repository CI matrix as its closure gate: standard tests, race tests, tagged soak compilation, `go vet` and command builds must remain green on the final implementation head before merge.
 
 ## Long-duration / scale validation
 
 ```text
-MEM-001 → MEM-015 contracts     IMPLEMENTED
-million-edge tagged scenario   IMPLEMENTED
-final CI closure gate          SKIPPED BY DECISION
-1h reference run               PENDING
-8h reference run               PENDING
-24h reference run              PENDING
+G10 contract tests             IMPLEMENTED
+durable lifecycle tests       IMPLEMENTED
+tagged soak compilation       IMPLEMENTED
+fault storm bounds            IMPLEMENTED
+1h reference run              PENDING
+8h reference run              PENDING
+24h reference run             PENDING
 ```
 
-Long-duration empirical calibration remains separate from G9 semantic completion.
+Long-duration empirical calibration remains separate from G10 semantic completion.
 
 ## Next generation
 
-**G10 — Context Faults + Cognitive MMU v2: READY.**
+**G11 — Adaptive Teams + Agent Negotiation: READY.**
 
-G10 can now introduce stable semantic cognitive references and typed Reference/Recall/Evidence/Freshness/Dependency/Representation faults on top of G9's durable Evidence/Belief graph, freshness metadata and dependency indexes.
+G11 can now build bounded multi-agent negotiation on top of durable processes, forks/world transactions, epistemic memory, typed context paging and the Cognitive Scheduler.
