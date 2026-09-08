@@ -25,7 +25,7 @@ type ObjectRecord struct {
 type Store interface {
 	Ping(context.Context) error
 
-	Checkpoint(context.Context) error
+	CheckpointWAL(context.Context) error
 
 	RegisterObject(
 		context.Context,
