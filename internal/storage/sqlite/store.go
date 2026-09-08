@@ -239,7 +239,7 @@ func (s *Store) Stats() storage.Stats {
 	}
 }
 
-func (s *Store) Checkpoint(
+func (s *Store) CheckpointWAL(
 	ctx context.Context,
 ) error {
 	var busy int
