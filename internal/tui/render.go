@@ -35,7 +35,7 @@ type renderStyles struct {
 }
 
 func stylesFor(theme Theme) renderStyles {
-	color := func(value string) lipgloss.Color { return lipgloss.Color(value) }
+	color := lipgloss.Color
 	base := lipgloss.NewStyle().Foreground(color(theme.Text)).Background(color(theme.Background))
 	pane := lipgloss.NewStyle().
 		Foreground(color(theme.Text)).
@@ -131,7 +131,7 @@ func (m Model) renderAgents(styles renderStyles, width, height int) string {
 	start := 0
 	visible := max(1, height-4)
 	if m.selectedAgent >= visible {
-		start = m.selectedAgent-visible+1
+		start = m.selectedAgent - visible + 1
 	}
 	end := min(len(m.tree), start+visible)
 	for index := start; index < end; index++ {

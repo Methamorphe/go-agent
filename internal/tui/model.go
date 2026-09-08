@@ -121,14 +121,14 @@ func NewModel(ctx context.Context, client runtimeClient, cfg Config) Model {
 	}
 	cfg = cfg.normalized()
 	return Model{
-		ctx: ctx,
-		client: client,
-		cfg: cfg,
-		focusID: cfg.AgentID,
-		mode: cfg.Mode,
+		ctx:             ctx,
+		client:          client,
+		cfg:             cfg,
+		focusID:         cfg.AgentID,
+		mode:            cfg.Mode,
 		composerFocused: true,
-		status: "connecting to agent runtime…",
-		loading: true,
+		status:          "connecting to agent runtime…",
+		loading:         true,
 	}
 }
 
@@ -399,7 +399,7 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 	}
 
 	switch verb {
-	case "ask", "plan", "act", "review", "observe":
+	case "ask", "act", "observe":
 		m.mode = workspace.Mode(strings.ToUpper(verb))
 		m.status = "mode " + string(m.mode)
 	case "mode":
@@ -634,10 +634,10 @@ func (m Model) attachCmd() tea.Cmd {
 			return attachMsg{err: context.Canceled}
 		}
 		snapshot, err := m.client.Attach(m.ctx, workspace.AttachRequest{
-			AgentID: m.focusID,
-			Mode: m.mode,
+			AgentID:      m.focusID,
+			Mode:         m.mode,
 			HistoryLimit: m.cfg.HistoryPageSize,
-			TreeLimit: m.cfg.TreeLimit,
+			TreeLimit:    m.cfg.TreeLimit,
 		})
 		return attachMsg{snapshot: snapshot, err: err}
 	}
@@ -650,11 +650,11 @@ func (m Model) refreshCmd(inspector bool) tea.Cmd {
 			return refreshMsg{err: context.Canceled}
 		}
 		refresh, err := m.client.Refresh(m.ctx, workspace.RefreshRequest{
-			RootAgentID: rootID,
+			RootAgentID:    rootID,
 			FocusedAgentID: focusID,
-			AfterSequence: cursor,
-			Limit: m.cfg.HistoryPageSize,
-			Inspector: inspector,
+			AfterSequence:  cursor,
+			Limit:          m.cfg.HistoryPageSize,
+			Inspector:      inspector,
 		})
 		return refreshMsg{refresh: refresh, err: err}
 	}
@@ -668,8 +668,8 @@ func (m Model) historyCmd() tea.Cmd {
 		}
 		viewport, err := m.client.History(m.ctx, workspace.HistoryRequest{
 			AgentID: focusID,
-			Before: before,
-			Limit: m.cfg.HistoryPageSize,
+			Before:  before,
+			Limit:   m.cfg.HistoryPageSize,
 		})
 		return historyMsg{viewport: viewport, err: err}
 	}
