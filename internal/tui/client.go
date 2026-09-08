@@ -8,6 +8,7 @@ import (
 	"github.com/Methamorphe/go-agent/internal/control"
 	controlapi "github.com/Methamorphe/go-agent/internal/control/api"
 	"github.com/Methamorphe/go-agent/internal/id"
+	"github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/workspace"
 )
 
@@ -73,4 +74,24 @@ func (c *Client) SendMessage(ctx context.Context, agentID id.AgentID, text strin
 		Queue: queue,
 	}, &response)
 	return response.Result, err
+}
+
+func (c *Client) Suspend(ctx context.Context, agentID id.AgentID, expected uint64, reason string) (process.State, error) {
+	var response controlapi.ProcessResponse
+	err := c.call(ctx, controlapi.MessageProcessSuspend, controlapi.ProcessTransitionRequest{
+		AgentID: agentID,
+		ExpectedVersion: &expected,
+		Reason: reason,
+	}, &response)
+	return response.Process, err
+}
+
+func (c *Client) Resume(ctx context.Context, agentID id.AgentID, expected uint64, reason string) (process.State, error) {
+	var response controlapi.ProcessResponse
+	err := c.call(ctx, controlapi.MessageProcessResume, controlapi.ProcessTransitionRequest{
+		AgentID: agentID,
+		ExpectedVersion: &expected,
+		Reason: reason,
+	}, &response)
+	return response.Process, err
 }
