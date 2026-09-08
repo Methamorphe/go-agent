@@ -29,6 +29,8 @@ type ForkID string
 type EvidenceID string
 type BeliefID string
 type PropagationID string
+type TeamID string
+type NegotiationID string
 
 func (id AgentID) String() string             { return string(id) }
 func (id EventID) String() string             { return string(id) }
@@ -58,3 +60,5 @@ func (id ForkID) String() string              { return string(id) }
 func (id EvidenceID) String() string          { return string(id) }
 func (id BeliefID) String() string            { return string(id) }
 func (id PropagationID) String() string       { return string(id) }
+func (id TeamID) String() string              { return string(id) }
+func (id NegotiationID) String() string       { return string(id) }

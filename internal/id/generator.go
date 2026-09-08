@@ -47,3 +47,5 @@ func (g *Generator) Fork() (ForkID, error)                           { v, e := g
 func (g *Generator) Evidence() (EvidenceID, error)                   { v, e := g.generate("evd"); return EvidenceID(v), e }
 func (g *Generator) Belief() (BeliefID, error)                       { v, e := g.generate("blf"); return BeliefID(v), e }
 func (g *Generator) Propagation() (PropagationID, error)             { v, e := g.generate("prp"); return PropagationID(v), e }
+func (g *Generator) Team() (TeamID, error)                           { v, e := g.generate("tem"); return TeamID(v), e }
+func (g *Generator) Negotiation() (NegotiationID, error)             { v, e := g.generate("neg"); return NegotiationID(v), e }
