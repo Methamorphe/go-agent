@@ -2,9 +2,9 @@
 
 ## Status
 
-**A0 architecture contract — ACCEPTED extension semantics; implementation deferred to G12.**
+**G12 — IMPLEMENTED AND VERIFIED.**
 
-The runtime may eventually improve prompts, skills, routing policies, context policies and specialist profiles from experience.
+The runtime can improve prompts, skills, routing policies, context policies and specialist profiles from experience through bounded, versioned and verified experimentation.
 
 Core rule:
 
@@ -243,7 +243,7 @@ Exact statistical method can evolve, but raw outcomes remain accessible.
 
 # 12. Reproducibility
 
-Every model invocation/task should eventually record exact refs for active cognitive artifacts:
+Every captured invocation manifest records exact refs for active cognitive artifacts:
 
 ```text
 prompt@v4
@@ -389,6 +389,8 @@ IMP-008 historical invocation retains exact artifact manifest
 IMP-009 candidate with insufficient eval evidence cannot auto-promote
 IMP-010 kill switch prevents new candidate use immediately for future scheduling
 ```
+
+All `IMP-001` through `IMP-010` contract tests are implemented and green in G12.
 
 ---
 
