@@ -7,11 +7,15 @@ on:
 permissions:
   contents: read
 
+env:
+  WAILS_V3_VERSION: v3.0.0-beta.18
+  GUI_MAX_BINARY_BYTES: "36700160"
+  GUI_MAX_FRONTEND_BYTES: "2097152"
+
 jobs:
   test:
     strategy:
       fail-fast: false
-
       matrix:
         os:
           - ubuntu-latest
@@ -28,7 +32,46 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Wails Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev xvfb dbus-x11
+
       - run: go mod download
+
+      - name: Verify Go module lock is reproducible
+        shell: bash
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Install frontend dependencies
+        working-directory: cmd/go-agent-gui/frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Generate pinned Wails v3 bindings
+        working-directory: cmd/go-agent-gui
+        run: go run github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_V3_VERSION }} generate bindings -ts -clean=true -d frontend/bindings .
+
+      - name: Frontend unit tests
+        working-directory: cmd/go-agent-gui/frontend
+        run: npm test
+
+      - name: Frontend typecheck and production bundle
+        working-directory: cmd/go-agent-gui/frontend
+        run: npm run build
+
+      - name: Enforce bounded frontend bundle
+        shell: bash
+        run: |
+          bytes=$(find cmd/go-agent-gui/frontend/dist -type f -exec wc -c {} + | awk 'END {print $1}')
+          echo "G14_FRONTEND_BYTES=$bytes"
+          test "$bytes" -le "$GUI_MAX_FRONTEND_BYTES"
 
       - run: go test ./...
 
@@ -44,6 +87,32 @@ jobs:
 
       - run: go build ./cmd/go-agent ./cmd/go-agentctl ./cmd/go-agent-tui
 
+      - name: Build stripped Wails v3 GUI
+        shell: bash
+        run: |
+          mkdir -p bin
+          ext=""
+          if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
+          go build -tags production -trimpath -buildvcs=false -ldflags="-w -s" -o "bin/go-agent-gui${ext}" ./cmd/go-agent-gui
+          bytes=$(wc -c < "bin/go-agent-gui${ext}" | tr -d ' ')
+          echo "G14_GUI_BINARY_BYTES=$bytes"
+          test "$bytes" -le "$GUI_MAX_BINARY_BYTES"
+
+      - name: Native Wails startup smoke (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: dbus-run-session -- xvfb-run -a ./bin/go-agent-gui --smoke-exit-ms 10000
+
+      - name: Native Wails startup smoke (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: ./bin/go-agent-gui --smoke-exit-ms 10000
+
+      - name: Native Wails startup smoke (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: ./bin/go-agent-gui.exe --smoke-exit-ms 10000
+
   race:
     runs-on: ubuntu-latest
 
@@ -54,5 +123,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Install Wails Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - run: go mod download
 
       - run: go test -race ./...
