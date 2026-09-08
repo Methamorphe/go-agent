@@ -15,63 +15,74 @@ G7  COMPLETE
 G8  COMPLETE
 G9  COMPLETE
 G10 COMPLETE
-G11 READY
+G11 READY TO IMPLEMENT
 ```
 
 ## Current generation
 
+**G11 — Adaptive Teams + Agent Negotiation: READY TO IMPLEMENT.**
+
+G10 is closed and merged. G11 is now the active implementation generation.
+
+The implementation contract is prepared in `G11_IMPLEMENTATION_PLAN.md` and defines:
+
+- durable Team proposal/decomposition;
+- scheduler admission and atomic bounded resource reservation;
+- temporary specialist profiles without authority expansion;
+- typed durable claim/challenge/evidence/counterexample/revision/concession/decision/escalation protocol;
+- deterministic convergence conditions;
+- hard round/deadline/message/evidence/resource bounds;
+- explicit no-progress and escalation outcomes;
+- G8 fork/world transaction and selective-promotion integration;
+- G9 Evidence/Belief and truth-maintenance integration;
+- G10 semantic cognitive references and Context Fault paging integration;
+- crash-safe recovery and replay idempotency;
+- TEAM-001+ and NEG-001+ contract test families;
+- an end-to-end race-condition dispute killer demonstration.
+
+## Previous generation
+
 **G10 — Context Faults + Cognitive MMU v2: COMPLETE.**
 
-G10 turns missing cognitive state into explicit, typed, bounded runtime paging events while preserving G4/G6/G9 compatibility and provider independence.
+G10 turns missing cognitive state into explicit, typed, bounded runtime paging events while preserving provider independence and the authority boundaries established by earlier generations.
 
-The implementation now includes:
-
-- stable semantic references: `ctx://`, `belief://`, `evidence://`, `object://`, `event://`, `checkpoint://`, `agent://`;
-- all six typed faults: Reference, Recall, Evidence, Freshness, Dependency and Representation;
-- finite one-build context leases for faulted pages;
-- bounded dependency-driven paging with resolver-independent cognitive references;
-- freshness paging through durable supersession chains with cycle detection;
-- structured compaction ↔ raw evidence paging through `SummaryOf`;
-- historical evidence inspection without silently promoting superseded knowledge back to current truth;
-- explicit `NEEDS_COMPACTION_OR_PROJECTION` handling for representations that exceed fault budgets;
-- per-invocation and per-task-window fault budgets;
-- progress-aware repeated-fault/page-set storm protection;
-- append-only lifecycle observability from `DETECTED` through terminal resolution state;
-- durable SQLite current-state journal and lifecycle event history through migration `0011`;
-- crash-safe resolved-fault → next-manifest handoff;
-- G4 manifest integration so resolved faults remain visible/replayable at the next invocation boundary;
-- semantic `belief://` references emitted by G9 MMU projections;
-- G10 contract tests plus durable manifest/lifecycle tests;
-- repaired tagged soak compilation using the dedicated SQLite `CheckpointWAL` maintenance API.
-
-The G10 killer condition is covered by the implementation contract: an invocation can fault on missing/stale/dependent knowledge, the runtime resolves only authorized bounded pages, grants finite leases, records the complete lifecycle, and makes the resolution explicit in the next durable context manifest rather than silently mutating model context.
+G10 closure includes stable semantic references, six typed Context Faults, finite context leases, bounded dependency/evidence/freshness paging, fault-storm protection, durable append-only lifecycle observability, next-manifest handoff, G9 semantic belief references, historical evidence inspection, cross-platform contract tests and a green final CI matrix.
 
 See:
 
 - `G10_EXIT_REVIEW.md`;
 - `CONTEXT_FAULTS_AND_COGNITIVE_PAGING.md`;
-- `G9_EXIT_REVIEW.md`.
+- `G11_IMPLEMENTATION_PLAN.md`.
 
-## Validation note
+## G11 killer demonstration
 
-G10 uses the repository CI matrix as its closure gate: standard tests, race tests, tagged soak compilation, `go vet` and command builds must remain green on the final implementation head before merge.
+Reviewer finds a race condition in an implementer's isolated candidate, implementer disputes it, reviewer supplies a reproducer/evidence reference, and the team must either revise and converge or escalate deterministically within finite rounds, deadline and resource budgets. Only a selected/verified branch may be promoted.
 
-## Long-duration / scale validation
+## G11 implementation order
 
 ```text
-G10 contract tests             IMPLEMENTED
-durable lifecycle tests       IMPLEMENTED
-tagged soak compilation       IMPLEMENTED
-fault storm bounds            IMPLEMENTED
+G11.1 IDs + typed contracts
+G11.2 durable Team store + admission
+G11.3 specialist child creation + authority intersection
+G11.4 durable negotiation messages + claims
+G11.5 bounded rounds/deadlines/no-progress
+G11.6 G9/G10 evidence integration
+G11.7 G8 fork/evaluation/promotion integration
+G11.8 crash recovery + idempotency
+G11.9 killer demo + race/CI/soak gates
+```
+
+## Long-duration / scale validation inherited from G10
+
+```text
+G10 contract tests             COMPLETE
+durable lifecycle tests       COMPLETE
+tagged soak compilation       COMPLETE
+fault storm bounds            COMPLETE
+final CI closure gate         GREEN
 1h reference run              PENDING
 8h reference run              PENDING
 24h reference run             PENDING
 ```
 
-Long-duration empirical calibration remains separate from G10 semantic completion.
-
-## Next generation
-
-**G11 — Adaptive Teams + Agent Negotiation: READY.**
-
-G11 can now build bounded multi-agent negotiation on top of durable processes, forks/world transactions, epistemic memory, typed context paging and the Cognitive Scheduler.
+Long-duration empirical calibration remains separate from semantic generation completion unless explicitly promoted to a mandatory exit gate.
