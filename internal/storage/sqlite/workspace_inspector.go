@@ -8,6 +8,7 @@ import (
 
 	"github.com/Methamorphe/go-agent/internal/errs"
 	"github.com/Methamorphe/go-agent/internal/id"
+	agentprocess "github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/team"
 	"github.com/Methamorphe/go-agent/internal/workspace"
 )
@@ -25,6 +26,18 @@ func (s *Store) WorkspaceInspector(ctx context.Context, rootID id.AgentID) (work
 	if err != nil {
 		return workspace.Inspector{}, err
 	}
+	contextRuntime, err := s.workspaceContextRuntime(ctx, rootID, faults)
+	if err != nil {
+		return workspace.Inspector{}, err
+	}
+	scheduler, err := s.workspaceScheduler(ctx, rootID)
+	if err != nil {
+		return workspace.Inspector{}, err
+	}
+	authority, err := s.workspaceAuthority(ctx, rootID)
+	if err != nil {
+		return workspace.Inspector{}, err
+	}
 	teams, err := s.workspaceTeams(ctx, rootID)
 	if err != nil {
 		return workspace.Inspector{}, err
@@ -36,7 +49,10 @@ func (s *Store) WorkspaceInspector(ctx context.Context, rootID id.AgentID) (work
 	return workspace.Inspector{
 		Transactions: transactions,
 		Forks: forks,
+		Context: contextRuntime,
 		ContextFaults: faults,
+		Scheduler: scheduler,
+		Authority: authority,
 		Teams: teams,
 		Improvements: improvements,
 	}, nil
@@ -49,7 +65,7 @@ SELECT t.transaction_id, t.agent_id, t.world_id, t.state, t.version,
                  WHERE v.transaction_id=t.transaction_id ORDER BY v.started_at DESC LIMIT 1), ''),
        (SELECT COUNT(*) FROM agent_transaction_effects e WHERE e.transaction_id=t.transaction_id),
        (SELECT COUNT(*) FROM agent_transaction_effects e WHERE e.transaction_id=t.transaction_id
-            AND e.outcome_certainty='UNKNOWN'),
+            AND e.outcome_certainty='unknown'),
        t.reconcile_reason, t.updated_at
 FROM agent_transactions t
 JOIN agent_processes p ON p.agent_id=t.agent_id
@@ -186,6 +202,127 @@ LIMIT 32`, rootID)
 	return result, nil
 }
 
+func (s *Store) workspaceContextRuntime(ctx context.Context, rootID id.AgentID, faults []workspace.ContextFaultSummary) (workspace.ContextRuntimeSummary, error) {
+	item := workspace.ContextRuntimeSummary{AgentID: rootID}
+	if err := s.db.QueryRowContext(ctx, `
+SELECT COUNT(*), COALESCE(SUM(c.token_estimate), 0)
+FROM context_pages c
+JOIN agent_processes p ON p.agent_id=c.agent_id
+WHERE p.root_agent_id=? AND c.superseded_by IS NULL AND c.compacted_by IS NULL`, rootID).Scan(&item.PageCount, &item.EstimatedTokens); err != nil {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.context", "query active context pages", err)
+	}
+	if err := s.db.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM context_leases l
+JOIN context_pages c ON c.page_id=l.page_id
+JOIN agent_processes p ON p.agent_id=c.agent_id
+WHERE p.root_agent_id=? AND l.remaining_builds > 0
+  AND (l.expires_at IS NULL OR l.expires_at > ?)`, rootID, time.Now().UTC().Format(time.RFC3339Nano)).Scan(&item.ActiveLeaseCount); err != nil {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.context", "query active context leases", err)
+	}
+	for _, fault := range faults {
+		if fault.State != "RESOLVED" {
+			item.UnresolvedFaults++
+		}
+	}
+	var created string
+	err := s.db.QueryRowContext(ctx, `
+SELECT m.agent_id, m.object_ref, m.created_at
+FROM context_manifests m
+JOIN agent_processes p ON p.agent_id=m.agent_id
+WHERE p.root_agent_id=?
+ORDER BY m.created_at DESC
+LIMIT 1`, rootID).Scan(&item.AgentID, &item.LatestManifestRef, &created)
+	if err == nil {
+		item.LatestManifestAt, err = parseWorkspaceTime(created)
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.context", "query latest context manifest", err)
+	}
+	return item, nil
+}
+
+func (s *Store) workspaceScheduler(ctx context.Context, rootID id.AgentID) (workspace.SchedulerSummary, error) {
+	item := workspace.SchedulerSummary{RootAgentID: rootID}
+	err := s.db.QueryRowContext(ctx, `
+SELECT limit_money_micros, limit_tokens, spent_money_micros, spent_tokens,
+       reserved_money_micros, reserved_tokens
+FROM scheduler_budget_accounts
+WHERE root_agent_id=?`, rootID).Scan(
+		&item.LimitMoneyMicros, &item.LimitTokens, &item.SpentMoneyMicros, &item.SpentTokens,
+		&item.ReservedMoneyMicros, &item.ReservedTokens,
+	)
+	if err != nil && err != sql.ErrNoRows {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.scheduler", "query scheduler budget", err)
+	}
+
+	var body []byte
+	var occurred string
+	err = s.db.QueryRowContext(ctx, `
+SELECT payload_json, occurred_at
+FROM ledger_events
+WHERE root_agent_id=? AND event_type='CognitiveRoutingDecided'
+ORDER BY ledger_sequence DESC
+LIMIT 1`, rootID).Scan(&body, &occurred)
+	if err == sql.ErrNoRows {
+		return item, nil
+	}
+	if err != nil {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.scheduler", "query latest routing decision", err)
+	}
+	var payload agentprocess.CognitiveRoutingDecidedPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return item, errs.Wrap(errs.CodeCorruption, "sqlite.workspace.scheduler", "decode routing decision", err)
+	}
+	item.LastDecisionID = payload.DecisionID
+	item.LastProvider = payload.Provider
+	item.LastModel = payload.Model
+	item.LastProfileVersion = payload.ProfileVersion
+	item.LastEstimatedMoney = payload.EstimatedMoneyMicros
+	item.LastEstimatedTokens = payload.EstimatedTokens
+	item.LastDecisionAt, err = parseWorkspaceTime(occurred)
+	if err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+func (s *Store) workspaceAuthority(ctx context.Context, rootID id.AgentID) (workspace.AuthoritySummary, error) {
+	item := workspace.AuthoritySummary{
+		AgentID: rootID,
+		CapabilityProjection: "not projected as grants; runtime authority remains canonical below the TUI",
+	}
+	var body []byte
+	if err := s.db.QueryRowContext(ctx, `SELECT state_json FROM agent_processes WHERE agent_id=?`, rootID).Scan(&body); err != nil {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.authority", "query root process intent", err)
+	}
+	var state agentprocess.State
+	if err := json.Unmarshal(body, &state); err != nil {
+		return item, errs.Wrap(errs.CodeCorruption, "sqlite.workspace.authority", "decode root process state", err)
+	}
+	if state.RootIntent != nil {
+		item.IntentID = state.RootIntent.ID
+		item.IntentVersion = state.RootIntent.SchemaVersion
+		item.Goal = state.RootIntent.Goal
+	}
+	var occurred string
+	err := s.db.QueryRowContext(ctx, `
+SELECT event_type, occurred_at
+FROM ledger_events
+WHERE root_agent_id=? AND (
+      event_type LIKE '%Authorization%' OR event_type LIKE '%Authority%' OR
+      event_type LIKE '%Denied%' OR event_type LIKE '%Approval%')
+ORDER BY ledger_sequence DESC
+LIMIT 1`, rootID).Scan(&item.LastSecurityEvent, &occurred)
+	if err == nil {
+		item.LastSecurityAt, err = parseWorkspaceTime(occurred)
+	}
+	if err != nil && err != sql.ErrNoRows {
+		return item, errs.Wrap(errs.CodeUnavailable, "sqlite.workspace.authority", "query latest security event", err)
+	}
+	return item, nil
+}
+
 func (s *Store) workspaceTeams(ctx context.Context, rootID id.AgentID) ([]workspace.TeamSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT team_id, state, team_json, updated_at
@@ -282,5 +419,3 @@ func mapText(body map[string]any, keys ...string) string {
 	}
 	return ""
 }
-
-var _ = sql.ErrNoRows
