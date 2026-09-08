@@ -24,6 +24,7 @@ type Store interface {
 	Transition(context.Context, id.TransactionID, uint64, []State, State, *world.PromotionPlan, string, string, json.RawMessage) (Transaction, error)
 	CreateEffect(context.Context, EffectRecord, string, json.RawMessage) error
 	UpdateEffect(context.Context, id.EffectRecordID, EffectState, OutcomeCertainty, string, string, json.RawMessage) error
+	ListEffects(context.Context, id.TransactionID) ([]EffectRecord, error)
 	CreateVerification(context.Context, Verification, string, json.RawMessage) error
 	TransactionEvents(context.Context, id.TransactionID) ([]Event, error)
 	ListByStates(context.Context, ...State) ([]Transaction, error)
