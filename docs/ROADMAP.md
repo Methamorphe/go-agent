@@ -10,7 +10,7 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is complete. G8 is complete. G9 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is complete. G8 is complete. G9 is complete. G10 is ready.**
 
 See:
 
@@ -25,6 +25,7 @@ See:
 - `G6_EXIT_REVIEW.md`;
 - `G7_EXIT_REVIEW.md`;
 - `G8_EXIT_REVIEW.md`;
+- `G9_EXIT_REVIEW.md`;
 - `PRODUCTION_TUI_WORKSPACE.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
@@ -634,7 +635,7 @@ See `G8_EXIT_REVIEW.md`.
 
 ---
 
-# G9 — Epistemic Memory + Truth Maintenance 🟢 READY
+# G9 — Epistemic Memory + Truth Maintenance ✅ COMPLETE
 
 ## Goal
 
@@ -656,9 +657,25 @@ Replace flat snippets with evidence-aware knowledge.
 
 Agent learns repository architecture fact; source changes; old belief is downgraded and cannot silently rank as trusted while original evidence/history remains inspectable.
 
+## G9 result
+
+**PASS.**
+
+G9 implements durable immutable/versioned Evidence with source/platform provenance, durable Belief lifecycle/history, structured confidence, scope and temporal validity, support/contradiction/dependency relationships, freshness/version tracking and epistemic retrieval that preserves status and provenance rather than flattening knowledge back into unqualified snippets.
+
+Truth maintenance is event-driven, durable and localized. Reverse indexes map Evidence to affected Beliefs and Beliefs to downstream dependents; persisted propagation jobs use bounded depth/work, unique visits and restart-safe continuation, so ordinary invalidation does not require a whole-graph scan and cycles cannot create unbounded propagation loops.
+
+G9 integrates with the Cognitive MMU and with G8 branch-local overlays/selective promotion. Speculative branch knowledge remains isolated until explicit winner promotion, and epistemic confidence remains informational: it cannot mint capabilities, widen Intent or bypass World authorization.
+
+SQLite migrations `0009` and `0010` persist the epistemic graph, history, usage metadata and truth-maintenance jobs/queue state. MEM-001 → MEM-015 contract tests and a tagged 1,000,000-edge scale scenario are committed.
+
+Final GitHub Actions CI is intentionally skipped as a G9 exit gate by project decision. Intermediate CI was used diagnostically and exposed the G8 SQLite checkpoint/WAL method collision, which was corrected. No unobserved final green CI result is claimed.
+
+See `G9_EXIT_REVIEW.md`.
+
 ---
 
-# G10 — Context Faults + Cognitive MMU v2
+# G10 — Context Faults + Cognitive MMU v2 🟢 READY
 
 ## Goal
 
@@ -1000,7 +1017,7 @@ bounded context
 recursive subagents
 ```
 
-G6 added model/resource scheduling and restart-safe model-budget accounting. G7 added isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8 adds safe execution editing, isolated alternative Agent/World futures, objective winner selection and selective promotion. G9–G10 build on this substrate with epistemic memory and typed context faults.
+G6 added model/resource scheduling and restart-safe model-budget accounting. G7 added isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8 added safe execution editing, isolated alternative Agent/World futures, objective winner selection and selective promotion. G9 adds evidence-aware memory and localized truth maintenance. G10 now builds typed context faults and MMU v2 on that substrate.
 
 **G13 is the deliberate productization generation:** it turns these runtime primitives into a polished interactive terminal workspace inspired by the best modern coding-agent UX while preserving go-agent's daemon durability, inspectability and headless parity. G14 then expands execution across remote workers; G15 adds deep production observability/time-travel debugging.
 
@@ -1034,17 +1051,16 @@ Long-duration validation uses tagged provider-free soak scenarios and explicit b
 
 # Immediate next step
 
-**G9 — Epistemic Memory + Truth Maintenance is READY.**
+**G10 — Context Faults + Cognitive MMU v2 is READY.**
 
-Build evidence-aware durable knowledge on top of G8's branch-local overlay and selective promotion substrate with:
+Build typed runtime paging events on top of G9's durable epistemic graph with:
 
-- immutable/versioned Evidence objects;
-- platform/source provenance;
-- Belief lifecycle and confidence metadata;
-- scope and temporal validity;
-- contradiction/dependency edges;
-- localized causal invalidation;
-- Cognitive MMU integration;
-- branch-local belief overlays and promotion rules.
+- stable semantic cognitive references;
+- Reference/Recall/Evidence/Freshness/Dependency/Representation faults;
+- context leases;
+- dependency-driven page loading;
+- fault budgets and storm protection;
+- structured compaction ↔ evidence paging;
+- improved working-set planning.
 
-G9 must preserve the kernel invariant that a winning fork may promote verified knowledge with provenance, but speculative branch assumptions do not become trusted global truth merely because the branch won an execution benchmark.
+G10 must keep faults provider-independent at invocation/tool boundaries, observable and replayable, while preserving G9's provenance/freshness/dependency semantics instead of degrading them back into flat context snippets.
