@@ -35,6 +35,9 @@ func (r *G4Runner) buildWorkingMessages(ctx context.Context, request RunRequest,
 	if err != nil {
 		return nil, mmu.ContextManifest{}, err
 	}
+	if err := r.memory.AttachPendingFaults(ctx, &set.Manifest); err != nil {
+		return nil, mmu.ContextManifest{}, err
+	}
 
 	messages := make([]provider.Message, 0, len(recent)+3)
 	var contextBuilder strings.Builder
