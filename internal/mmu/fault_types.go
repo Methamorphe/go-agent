@@ -88,6 +88,10 @@ type FaultState string
 
 const (
 	FaultDetected        FaultState = "DETECTED"
+	FaultValidating      FaultState = "VALIDATING"
+	FaultResolving       FaultState = "RESOLVING"
+	FaultMaterializing   FaultState = "MATERIALIZING"
+	FaultBudgeting       FaultState = "BUDGETING"
 	FaultResolved        FaultState = "RESOLVED"
 	FaultDenied          FaultState = "DENIED"
 	FaultUnresolved      FaultState = "UNRESOLVED"
