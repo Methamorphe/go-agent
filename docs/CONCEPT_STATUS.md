@@ -73,8 +73,13 @@ The older text remains design history and rationale, not the current gate status
 # Current project phase
 
 ```text
-A0 — PASS / COMPLETE
-G0 — READY, NOT STARTED
+A0      PASS / COMPLETE
+G0–G7   COMPLETE
+G8      READY
 ```
+
+G7 has now implemented the first architecture-valid Agent Transaction substrate: Git-aware isolated WorkspaceWorld promotion, conservative OCI execution guarantees, durable effect/outcome state and crash-safe reconciliation.
+
+G8 may build Cognitive Fork / Safe Execution Editing on those closed semantics without reinterpreting the G7 transaction guarantees.
 
 No implementation work should reinterpret a CLOSED concept silently. A high-coupling semantic change requires an explicit contract/decision update before code changes.
