@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Methamorphe/go-agent/internal/agent"
@@ -35,14 +36,14 @@ type LaunchOptions struct {
 
 // Bootstrap describes stable bridge capabilities without copying canonical state.
 type Bootstrap struct {
-	BridgeVersion            uint32         `json:"bridge_version"`
-	WorkspaceProtocolVersion uint32         `json:"workspace_protocol_version"`
-	Launch                    LaunchOptions  `json:"launch"`
+	BridgeVersion            uint32           `json:"bridge_version"`
+	WorkspaceProtocolVersion uint32           `json:"workspace_protocol_version"`
+	Launch                    LaunchOptions    `json:"launch"`
 	Modes                     []workspace.Mode `json:"modes"`
-	MaxHistoryPage           int            `json:"max_history_page"`
-	MaxTree                  int            `json:"max_tree"`
-	RecommendedRefreshMS     int            `json:"recommended_refresh_ms"`
-	RecommendedLiveRefreshMS int            `json:"recommended_live_refresh_ms"`
+	MaxHistoryPage           int              `json:"max_history_page"`
+	MaxTree                  int              `json:"max_tree"`
+	RecommendedRefreshMS     int              `json:"recommended_refresh_ms"`
+	RecommendedLiveRefreshMS int              `json:"recommended_live_refresh_ms"`
 }
 
 // ProcessTransition is a versioned suspend/resume request.
@@ -50,6 +51,36 @@ type ProcessTransition struct {
 	AgentID         id.AgentID `json:"agent_id"`
 	ExpectedVersion uint64     `json:"expected_version"`
 	Reason          string     `json:"reason,omitempty"`
+}
+
+// StartupProbe is presentation-only instrumentation used by the cross-platform
+// Wails smoke gate. It never influences daemon state or runtime policy.
+type StartupProbe struct {
+	once  sync.Once
+	ready chan time.Time
+}
+
+func NewStartupProbe() *StartupProbe {
+	return &StartupProbe{ready: make(chan time.Time, 1)}
+}
+
+func (p *StartupProbe) markReady(at time.Time) {
+	if p == nil {
+		return
+	}
+	p.once.Do(func() {
+		p.ready <- at.UTC()
+		close(p.ready)
+	})
+}
+
+// Ready exposes the one-shot frontend-ready signal to the desktop host. The
+// probe itself is not registered as a Wails service.
+func (p *StartupProbe) Ready() <-chan time.Time {
+	if p == nil {
+		return nil
+	}
+	return p.ready
 }
 
 // DesktopService is the only Go service exposed to Wails. It is intentionally a
@@ -61,17 +92,26 @@ type DesktopService struct {
 	launch          LaunchOptions
 	readTimeout     time.Duration
 	mutationTimeout time.Duration
+	startup         *StartupProbe
 }
 
 func NewService(caller Caller, launch LaunchOptions) *DesktopService {
+	return NewServiceWithStartupProbe(caller, launch, NewStartupProbe())
+}
+
+func NewServiceWithStartupProbe(caller Caller, launch LaunchOptions, startup *StartupProbe) *DesktopService {
 	if !launch.Mode.Valid() {
 		launch.Mode = workspace.ModeAct
+	}
+	if startup == nil {
+		startup = NewStartupProbe()
 	}
 	return &DesktopService{
 		caller:          caller,
 		launch:          launch,
 		readTimeout:     defaultReadTimeout,
 		mutationTimeout: defaultMutationTimeout,
+		startup:         startup,
 	}
 }
 
@@ -96,6 +136,16 @@ func (s *DesktopService) Bootstrap() Bootstrap {
 		RecommendedRefreshMS:     160,
 		RecommendedLiveRefreshMS: 80,
 	}
+}
+
+// FrontendReady is called once by the mounted TypeScript workspace. It exists
+// only to prove that the native window, WebView, bundled assets and generated
+// bindings completed their startup path during smoke tests.
+func (s *DesktopService) FrontendReady() {
+	if s == nil {
+		return
+	}
+	s.startup.markReady(time.Now())
 }
 
 func (s *DesktopService) call(messageType string, request, response any, timeout time.Duration) error {
