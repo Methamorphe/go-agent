@@ -3,6 +3,8 @@ module github.com/Methamorphe/go-agent
 go 1.27
 
 require (
+	charm.land/bubbletea/v2 v2.0.9
+	charm.land/lipgloss/v2 v2.0.6
 	github.com/Microsoft/go-winio v0.6.2
 	modernc.org/sqlite v1.57.0
 )
