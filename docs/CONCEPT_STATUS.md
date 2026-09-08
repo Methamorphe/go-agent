@@ -47,8 +47,9 @@ DEFERRED    intentionally excluded from early implementation; extension boundary
 | Learned model routing | DEFERRED | `COGNITIVE_SCHEDULER_ARCHITECTURE.md`, `VERIFIED_CONTINUAL_IMPROVEMENT.md` |
 | Provider-specific mid-token Context Fault resume | DEFERRED | `CONTEXT_FAULTS_AND_COGNITIVE_PAGING.md` |
 | Non-quiescent execution editing | DEFERRED research | `EXECUTION_EDIT_SAFETY.md` |
-| Distributed workers/control plane | DEFERRED | roadmap G13 |
-| Final TUI framework | EMPIRICAL / DEFERRED selection | `TUI_AND_STREAMING.md`, `FOUNDATION_TECHNICAL_DECISIONS.md` |
+| Production TUI / Interactive Agent Workspace | CLOSED architecture / EMPIRICAL framework + UX | `TUI_AND_STREAMING.md`, `PRODUCTION_TUI_WORKSPACE.md`, roadmap G13 |
+| Distributed workers/control plane | DEFERRED | roadmap G14 |
+| Production observability / time-travel debugger | DEFERRED implementation | roadmap G15 |
 
 ---
 
@@ -81,5 +82,7 @@ G8      READY
 G7 has now implemented the first architecture-valid Agent Transaction substrate: Git-aware isolated WorkspaceWorld promotion, conservative OCI execution guarantees, durable effect/outcome state and crash-safe reconciliation.
 
 G8 may build Cognitive Fork / Safe Execution Editing on those closed semantics without reinterpreting the G7 transaction guarantees.
+
+The production terminal experience is now an explicit roadmap generation: **G13 — Production TUI / Interactive Agent Workspace**. G13 owns the final framework selection, polished multi-agent UX, plan/diff review, transaction/fork visualization, MMU/authority inspection, themes/keymaps and long-history responsiveness while preserving the daemon-as-source-of-truth architecture.
 
 No implementation work should reinterpret a CLOSED concept silently. A high-coupling semantic change requires an explicit contract/decision update before code changes.
