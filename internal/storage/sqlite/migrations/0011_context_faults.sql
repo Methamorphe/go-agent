@@ -14,3 +14,13 @@ CREATE INDEX IF NOT EXISTS idx_context_faults_agent_pending
 
 CREATE INDEX IF NOT EXISTS idx_context_faults_source_invocation
     ON context_faults(source_invocation_id, updated_at);
+
+CREATE TRIGGER IF NOT EXISTS context_manifest_claim_resolved_faults
+AFTER INSERT ON context_manifests
+BEGIN
+    UPDATE context_faults
+    SET manifested_invocation_id = new.invocation_id
+    WHERE agent_id = new.agent_id
+      AND state = 'RESOLVED'
+      AND manifested_invocation_id IS NULL;
+END;
