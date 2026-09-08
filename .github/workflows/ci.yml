@@ -8,6 +8,9 @@ permissions:
   contents: read
 
 env:
+  GO_VERSION: "1.27.1"
+  NODE_VERSION: "24.19.0"
+  NPM_VERSION: "11.17.0"
   WAILS_V3_VERSION: v3.0.0-beta.18
   GUI_MAX_BINARY_BYTES: "36700160"
   GUI_MAX_FRONTEND_BYTES: "2097152"
@@ -29,12 +32,20 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify pinned host toolchain
+        shell: bash
+        run: |
+          test "$(go env GOVERSION)" = "go${GO_VERSION}"
+          test "$(node --version)" = "v${NODE_VERSION}"
+          test "$(npm --version)" = "${NPM_VERSION}"
+          go run github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_V3_VERSION} version
 
       - name: Install Wails Linux dependencies
         if: runner.os == 'Linux'
@@ -121,7 +132,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Install Wails Linux dependencies
