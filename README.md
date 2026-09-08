@@ -17,10 +17,11 @@ G3  Worlds + Authority + Effect System        COMPLETE
 G4  Cognitive MMU v0                          COMPLETE
 G5  Recursive Agent Processes                 COMPLETE
 G6  Cognitive Scheduler v0                    COMPLETE
-G7  Workspace/OCI World + Agent Transactions  READY
+G7  Workspace/OCI World + Agent Transactions  COMPLETE
+G8  Cognitive Fork / Safe Execution Editing   READY
 ```
 
-G6 is closed and validated. The integrated G0–G6 runtime passes cross-platform tests/vet/builds and the race detector, including restart-safe SQLite scheduler budget accounting. The next implementation generation is **G7 — Workspace/OCI World + Agent Transactions**.
+G7 is closed and validated. The integrated G0–G7 runtime passes cross-platform tests/vet/builds and the race detector, with restart-safe durable transaction state, Git-aware isolated WorkspaceWorld promotion, conservative OCI execution guarantees, effect/outcome reconciliation and the existing scheduler/MMU/orchestration foundations intact. The next implementation generation is **G8 — Cognitive Fork / Safe Execution Editing**.
 
 See [Current Generation](docs/CURRENT_GENERATION.md), the generation exit reviews, and the [Implementation Roadmap](docs/ROADMAP.md).
 
@@ -161,6 +162,7 @@ The architecture currently defines these primitives:
 - [G4 Exit Review — Cognitive MMU v0](docs/G4_EXIT_REVIEW.md)
 - [G5 Exit Review — Recursive Agent Processes](docs/G5_EXIT_REVIEW.md)
 - [G6 Exit Review — Cognitive Scheduler v0](docs/G6_EXIT_REVIEW.md)
+- [G7 Exit Review — Workspace/OCI World + Agent Transactions](docs/G7_EXIT_REVIEW.md)
 - [Cognitive Scheduler v0 runtime configuration](docs/COGNITIVE_SCHEDULER_V0.md)
 - [Long-duration benchmark suite](docs/LONG_DURATION_BENCHMARKS.md)
 - [Architecture diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
@@ -231,11 +233,11 @@ centralized durable timers
 explicit concurrency/resource budgets
 ```
 
-The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic large histories. The executable long-duration baseline covers real SQLite reopen/checkpoint durability, Cognitive MMU boundedness against a persisted large corpus, and restart-safe scheduler budget accounting; representative 1h/8h/24h runs remain empirical validation work.
+The anti-regression plan targets 1h/8h/24h soak tests, daemon kill/restart tests, slow-TUI tests, multi-GB tool-output tests and synthetic large histories. The executable long-duration baseline covers real SQLite reopen/checkpoint durability, Cognitive MMU boundedness against a persisted large corpus, restart-safe scheduler budget accounting and G7 transaction restart/reconciliation invariants; representative 1h/8h/24h runs remain empirical validation work.
 
 ## Implemented runtime baseline
 
-The current G0–G6 implementation includes:
+The current G0–G7 implementation includes:
 
 ```text
 Go kernel
@@ -252,6 +254,9 @@ LocalWorld + authority/effect gate
 Cognitive MMU v0
 Recursive Agent Processes + hierarchical budgets
 Cognitive Scheduler v0 + durable root model budgets
+Git-aware isolated WorkspaceWorld + three-way promotion
+OCIWorld with conservative isolation/resource defaults
+Durable Agent Transactions + effect/outcome reconciliation
 ```
 
 ## Scope
@@ -283,9 +288,9 @@ Cognitive Scheduler v0 + durable root model budgets
 
 ## Status
 
-**A0–G6 complete. G7 — Workspace/OCI World + Agent Transactions ready.**
+**A0–G7 complete. G8 — Cognitive Fork / Safe Execution Editing ready.**
 
-The next implementation step is to add isolated Workspace/OCI Worlds and transaction boundaries so speculative work can be verified, committed, rolled back or reconciled without weakening the durable process, authority, MMU, orchestration or scheduler semantics already established.
+The next implementation step is to build forkable quiescent checkpoints, isolated branch Agent/World state, branch-local cognitive overlays, objective evaluation and selective three-way promotion without rewriting history or weakening the transaction/effect guarantees established by G7.
 
 ## Naming
 

@@ -24,13 +24,13 @@ type Effect struct {
 }
 
 type Action struct {
-	ID       id.ActionID   `json:"id"`
-	AgentID  id.AgentID    `json:"agent_id"`
-	Kind     string        `json:"kind"`
-	Purpose  string        `json:"purpose"`
-	Resource string        `json:"resource,omitempty"`
+	ID       id.ActionID     `json:"id"`
+	AgentID  id.AgentID      `json:"agent_id"`
+	Kind     string          `json:"kind"`
+	Purpose  string          `json:"purpose"`
+	Resource string          `json:"resource,omitempty"`
 	Params   json.RawMessage `json:"params,omitempty"`
-	Effect   Effect        `json:"effect"`
+	Effect   Effect          `json:"effect"`
 }
 
 type ResultStatus string
@@ -48,11 +48,81 @@ type Result struct {
 	Error    string       `json:"error,omitempty"`
 }
 
+type WorldType string
+
+const (
+	TypeLocal     WorldType = "local"
+	TypeWorkspace WorldType = "workspace"
+	TypeOCI       WorldType = "oci"
+)
+
+type EnforcementLevel string
+
+const (
+	EnforcementAdvisory         EnforcementLevel = "advisory"
+	EnforcementHostMediated     EnforcementLevel = "host_mediated"
+	EnforcementIsolated         EnforcementLevel = "isolated"
+	EnforcementStronglyIsolated EnforcementLevel = "strongly_isolated"
+)
+
+type NetworkMode string
+
+const (
+	NetworkNone        NetworkMode = "none"
+	NetworkObserveOnly NetworkMode = "observe_only"
+	NetworkRestricted  NetworkMode = "restricted"
+	NetworkFullOutbound NetworkMode = "full_outbound"
+)
+
+type FilesystemGuarantees struct {
+	WorldRelativeRoot bool `json:"world_relative_root"`
+	MutationIsolation bool `json:"mutation_isolation"`
+	GitAware          bool `json:"git_aware"`
+}
+
+type SecretGuarantees struct {
+	ExplicitBinding bool `json:"explicit_binding"`
+	ModelOpaque     bool `json:"model_opaque"`
+}
+
+type SnapshotGuarantees struct {
+	Supported    bool `json:"supported"`
+	CrashDurable bool `json:"crash_durable"`
+}
+
+type ForkGuarantees struct {
+	Supported    bool `json:"supported"`
+	CrashDurable bool `json:"crash_durable"`
+}
+
+type PromotionGuarantees struct {
+	Supported      bool `json:"supported"`
+	ThreeWay       bool `json:"three_way"`
+	Reconciliation bool `json:"reconciliation"`
+}
+
+type ResourceLimitGuarantees struct {
+	WallTime bool `json:"wall_time"`
+	CPU      bool `json:"cpu"`
+	Memory   bool `json:"memory"`
+	PIDs     bool `json:"pids"`
+}
+
 type Profile struct {
-	Name                     string `json:"name"`
-	SupportsStreaming        bool   `json:"supports_streaming"`
-	SupportsCancellation     bool   `json:"supports_cancellation"`
-	SupportsProcessTreeKill  bool   `json:"supports_process_tree_kill"`
+	Name                    string                  `json:"name"`
+	Type                    WorldType               `json:"type,omitempty"`
+	EnforcementLevel        EnforcementLevel        `json:"enforcement_level,omitempty"`
+	Filesystem              FilesystemGuarantees    `json:"filesystem,omitempty"`
+	Network                 NetworkMode              `json:"network,omitempty"`
+	Secrets                 SecretGuarantees        `json:"secrets,omitempty"`
+	Snapshot                SnapshotGuarantees      `json:"snapshot,omitempty"`
+	Fork                    ForkGuarantees          `json:"fork,omitempty"`
+	Promotion               PromotionGuarantees     `json:"promotion,omitempty"`
+	ResourceLimits          ResourceLimitGuarantees `json:"resource_limits,omitempty"`
+	ProfileVersion          uint32                  `json:"profile_version,omitempty"`
+	SupportsStreaming       bool                    `json:"supports_streaming"`
+	SupportsCancellation    bool                    `json:"supports_cancellation"`
+	SupportsProcessTreeKill bool                    `json:"supports_process_tree_kill"`
 }
 
 type Intent struct {

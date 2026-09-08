@@ -1,6 +1,6 @@
 # Current Implementation Generation
 
-**Updated: September 7, 2026**
+**Updated: September 8, 2026**
 
 ```text
 A0  COMPLETE
@@ -11,20 +11,36 @@ G3  COMPLETE
 G4  COMPLETE
 G5  COMPLETE
 G6  COMPLETE
-G7  READY
+G7  COMPLETE
+G8  READY
 ```
 
 ## Current generation
 
-**G6 — Cognitive Scheduler v0: COMPLETE.**
+**G7 — Workspace/OCI World + Agent Transactions: COMPLETE.**
 
-G6 implements deterministic per-invocation model scheduling over bounded Cognitive MMU context with model Profiles, hard eligibility constraints, cost/latency/quality/load scoring, provider health/circuit breaking, fallback, privacy/locality policy, bounded global/per-root/provider concurrency, durable routing events/metrics and exact resource reservation/settlement.
+G7 makes speculative mutation isolated and promotion-controlled where the selected World can prove the required guarantees.
 
-The daemon is config-driven and opt-in. Legacy G4 behavior remains unchanged when the scheduler is disabled.
+The implementation now includes:
 
-Scheduler root-budget state is durable in SQLite via migration `0006_cognitive_scheduler.sql`: limits, spent usage and active reservations survive close/reopen, preventing budget reset or overspend after daemon restart.
+- Git-aware `WorkspaceWorld` with explicit tracked-dirty/untracked base capture and ignored-file exclusion;
+- detached isolated worktrees without mutating the user's Git index;
+- target-divergence detection, three-way promotion and target-scoped promotion lease;
+- APPLY verification and reconciliation by durable Git identities rather than blind replay;
+- OCI execution with network-off/read-only/cap-drop/no-new-privileges defaults, controlled mounts, resource limits and model-opaque secret binding;
+- honest World Profiles that do not claim unsupported OCI snapshot/fork/promotion guarantees;
+- optional `TransactionalWorld` semantics rather than fake transaction support on every World;
+- `SecureTransactionalWorld` composition with the G3 authority gate;
+- durable transaction/effect/verification/audit state in SQLite via `0007_agent_transactions.sql`;
+- explicit `begin → execute → verify → prepare → commit / rollback / reconcile` lifecycle;
+- durable DISPATCH before World mutation;
+- irreversible-effect deferral;
+- `OUTCOME_UNKNOWN` → `NEEDS_RECONCILIATION` safety;
+- rollback hazard checks that prevent false rollback claims for unresolved or externally visible effects;
+- evidence-backed effect reconciliation;
+- current-policy/capability commit guard immediately before PREPARE and COMMIT.
 
-GitHub Actions run `34160212580` on head `ba26110afe7cadb96832d8ab2df357e3bcd6d949` passed:
+Implementation head `da1ce88159bf8f3d51606222fb64413827dd2743` passed GitHub Actions CI run `34203844173`:
 
 ```text
 test (ubuntu-latest)  ✅
@@ -33,12 +49,16 @@ test (windows-latest) ✅
 race                   ✅
 ```
 
-The platform jobs passed `go test ./...`, `go vet ./...`, soak-scenario compilation where applicable and both binary builds. The race job passed `go test -race ./...`.
+The platform jobs passed `go test ./...`, `go vet ./...` and both binary builds. The race job passed `go test -race ./...`.
+
+Long-duration workflow run `34203844315` also passed on the same implementation head.
 
 See:
 
-- `G6_EXIT_REVIEW.md`;
-- `COGNITIVE_SCHEDULER_V0.md`;
+- `G7_EXIT_REVIEW.md`;
+- `TRANSACTIONS_AND_COGNITIVE_FORKS.md`;
+- `EXECUTION_WORLDS_PLATFORM_CONTRACT.md`;
+- `EXECUTION_EDIT_SAFETY.md`;
 - `LONG_DURATION_BENCHMARKS.md`.
 
 ## Long-duration validation
@@ -46,15 +66,16 @@ See:
 ```text
 soak harness                IMPLEMENTED
 soak compile gate           ENABLED IN CI
+latest soak workflow        PASS
 1h reference run            PENDING
 8h reference run            PENDING
 24h reference run           PENDING
 ```
 
-The executable baseline covers real SQLite reopen/checkpoint durability, Cognitive MMU boundedness against persisted large corpora, and scheduler budget restart safety. Reference 1h/8h/24h runs remain empirical longevity work and are not a known G6 correctness defect.
+The historical 1h/8h/24h empirical longevity runs remain separate calibration work and are not a known G7 correctness defect. G7's transaction correctness and crash/reconciliation invariants are covered by deterministic tests and restart/reopen integration tests.
 
 ## Next generation
 
-**G7 — Workspace/OCI World + Agent Transactions: READY.**
+**G8 — Cognitive Fork / Safe Execution Editing: READY.**
 
-G7 can now build isolated reversible/speculative execution and transaction semantics on top of durable processes, authority/effects, bounded context, recursive orchestration and model/resource scheduling.
+G8 can now build quiescent forkable checkpoints, isolated branch Agent/World state, branch-local cognitive overlays, objective branch evaluation and selective promotion on top of the transaction/promotion substrate proven by G7.
