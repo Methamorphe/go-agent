@@ -17,5 +17,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "bindings", "vite.config.ts"]
+  "include": ["src", "bindings", "vite.config.ts", "vitest.config.ts"]
 }
