@@ -8,10 +8,12 @@ const root = document.querySelector<HTMLElement>("#app");
 if (!root) throw new Error("#app root is missing");
 
 const store = new WorkspaceStore();
-const controller = new WorkspaceController(new WailsRuntimeClient(), store);
+const runtime = new WailsRuntimeClient();
+const controller = new WorkspaceController(runtime, store);
 const app = new DesktopApp(root, controller, store);
 
 app.mount();
+void runtime.frontendReady();
 void controller.start();
 
 window.addEventListener("beforeunload", () => {
