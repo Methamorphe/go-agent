@@ -1,6 +1,6 @@
 # G12 Exit Review — Verified Continual Improvement
 
-Status: **PASS pending final CI gate**
+Status: **PASS**
 
 ## Scope delivered
 
@@ -118,14 +118,15 @@ An additional killer test proves canary sample caps are hard bounds.
 
 ## CI gate
 
-The closure gate is the repository matrix:
+GitHub Actions run `34224392815` passed the authoritative repository matrix on the G12 implementation head:
 
 ```text
-go test ./...                                      required Linux/macOS/Windows
-go test -race ./...                                required
-go test -tags soak ./internal/soaktest -run '^$'  required Linux compile gate
-go vet ./...                                       required Linux/macOS/Windows
-go build ./cmd/go-agent ./cmd/go-agentctl          required Linux/macOS/Windows
+go test ./...                                      PASS Linux/macOS/Windows
+go test -race ./...                                PASS Linux
+go test -tags=soak -run '^$' ./internal/mmu ./internal/storage/sqlite
+                                                     PASS Linux compile gate
+go vet ./...                                       PASS Linux/macOS/Windows
+go build ./cmd/go-agent ./cmd/go-agentctl          PASS Linux/macOS/Windows
 ```
 
-This document should be changed from `PASS pending final CI gate` to `PASS` only after the G12 head passes the authoritative GitHub Actions gate.
+G12 is closed with the complete `IMP-001` through `IMP-010` contract green.
