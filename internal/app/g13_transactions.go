@@ -19,7 +19,7 @@ type g13TransactionStore interface {
 }
 
 type g13ProcessReader interface {
-	Current(context.Context, id.AgentID) (agentprocess.State, error)
+	Inspect(context.Context, id.AgentID) (agentprocess.State, error)
 }
 
 type g13TransactionOperator struct {
@@ -51,7 +51,7 @@ func (o *g13TransactionOperator) commitGuard(ctx context.Context, tx transaction
 	if o == nil || o.processes == nil {
 		return fmt.Errorf("operator process policy unavailable")
 	}
-	state, err := o.processes.Current(ctx, tx.AgentID)
+	state, err := o.processes.Inspect(ctx, tx.AgentID)
 	if err != nil {
 		return fmt.Errorf("read current Agent policy state: %w", err)
 	}
