@@ -19,6 +19,7 @@ import (
 	agentprocess "github.com/Methamorphe/go-agent/internal/process"
 	"github.com/Methamorphe/go-agent/internal/storage/sqlite"
 	"github.com/Methamorphe/go-agent/internal/supervisor"
+	"github.com/Methamorphe/go-agent/internal/workspace"
 )
 
 type App struct {
@@ -86,6 +87,8 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("initialize cognitive scheduler: %w", err)
 	}
+	workspaceService := workspace.New(store, a.clock.Now)
+	transactionOperator := newG13TransactionOperator(store, processes, ids, a.clock.Now)
 	processSupervisor := supervisor.New(a.logger, processes, a.clock, runtimeID)
 
 	if err := processSupervisor.Recover(ctx); err != nil {
@@ -117,7 +120,8 @@ func (a *App) Run(ctx context.Context) error {
 
 	baseHandler := newControlHandler(store, processes, a.clock.Now)
 	orchestrationHandler := newG5ControlHandler(baseHandler, orchestrator)
-	handler := newG2ControlHandler(orchestrationHandler, agentRunner)
+	agentHandler := newG2ControlHandler(orchestrationHandler, agentRunner)
+	handler := newG13ControlHandler(agentHandler, workspaceService, transactionOperator)
 	server := control.NewServer(a.logger, handler, a.cfg.MaxFrameBytes, a.cfg.MaxControlConnections)
 
 	runtimeCtx, cancelRuntime := context.WithCancel(ctx)
@@ -135,6 +139,7 @@ func (a *App) Run(ctx context.Context) error {
 		"database", a.cfg.DatabasePath(),
 		"control_address", a.cfg.ControlAddress,
 		"cognitive_scheduler", a.cfg.Scheduler.Enabled,
+		"workspace_protocol", workspace.ProtocolVersion,
 	)
 
 	select {

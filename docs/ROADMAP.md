@@ -10,7 +10,29 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is complete. G8 is complete. G9 is complete. G10 is ready.**
+A generation is complete only when its invariants, failure behavior and non-functional claims are implemented, tested and documented. Detailed historical closure evidence lives in the corresponding `G*_EXIT_REVIEW.md`; this roadmap is the current status and forward plan.
+
+## Implementation status
+
+```text
+A0  COMPLETE  Architecture & Semantics
+G0  COMPLETE  Foundations
+G1  COMPLETE  Durable Agent Process + Event Ledger
+G2  COMPLETE  Minimal Agent Loop + Agent Syscalls
+G3  COMPLETE  Worlds + Authority + Effect System
+G4  COMPLETE  Cognitive MMU v0
+G5  COMPLETE  Recursive Agent Processes
+G6  COMPLETE  Cognitive Scheduler v0
+G7  COMPLETE  Workspace/OCI World + Agent Transactions
+G8  COMPLETE  Cognitive Fork / Safe Execution Editing
+G9  COMPLETE  Epistemic Memory + Truth Maintenance
+G10 COMPLETE  Context Faults + Cognitive MMU v2
+G11 COMPLETE  Adaptive Teams + Agent Negotiation
+G12 COMPLETE  Verified Continual Improvement
+G13 COMPLETE  Production TUI / Interactive Agent Workspace
+G14 READY     Distributed Worlds / Workers
+G15 PLANNED   Production Observability / Time-Travel Debugger
+```
 
 See:
 
@@ -26,13 +48,15 @@ See:
 - `G7_EXIT_REVIEW.md`;
 - `G8_EXIT_REVIEW.md`;
 - `G9_EXIT_REVIEW.md`;
+- `G10_EXIT_REVIEW.md`;
+- `G11_EXIT_REVIEW.md`;
+- `G12_EXIT_REVIEW.md`;
+- `G13_EXIT_REVIEW.md`;
 - `PRODUCTION_TUI_WORKSPACE.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
 - `FOUNDATION_TECHNICAL_DECISIONS.md`.
-
-A generation is complete only when its invariants, failure behavior and non-functional claims are tested and documented.
 
 The working product name remains **TBD**.
 
@@ -40,527 +64,71 @@ The working product name remains **TBD**.
 
 # A0 — Architecture & Semantics ✅ COMPLETE
 
-## Goal
+A0 fixed the execution semantics before implementation: durable Agent Processes, Event Ledger, Worlds, authority/effects, Cognitive MMU, Context Faults, epistemic memory, recursive agents, transactions/forks, scheduler/economy, verified continual improvement, bounded queues and recovery rules.
 
-Design the execution model deeply enough that implementation validates decisions instead of inventing fundamental semantics ad hoc.
-
-## Closed workstreams
-
-A0 now defines:
-
-- Agent Process state machine and Agent Syscalls;
-- Event Ledger ordering, reducers, snapshots and projections;
-- canonical vs ephemeral state;
-- SQLite/Object Store persistence contracts;
-- failure and recovery semantics;
-- concurrency ownership, bounded queues and backpressure;
-- runtime daemon ↔ TUI protocol and history virtualization;
-- World/action/effect contracts;
-- capability + Intent-Based Authority model;
-- Cognitive MMU pages/working-set/recall semantics;
-- Context Fault semantics;
-- Epistemic Memory + Truth Maintenance;
-- recursive-agent budget/cancellation/messaging semantics;
-- transaction/fork/restore/merge safety;
-- Cognitive Scheduler + Agent Economy;
-- Verified Continual Improvement extension semantics;
-- testing, soak and benchmark gates.
-
-## A0 result
-
-**PASS.**
-
-Remaining unknowns are isolated as empirical adapter/tuning work rather than semantic gaps.
-
-Examples:
-
-```text
-SQLite driver soak/performance validation
-Git WorkspaceWorld implementation details
-Unix/Windows process-tree edge cases
-MMU ranking thresholds
-Memory consolidation heuristics
-Scheduler utility weights
-TUI library selection
-```
-
-These do not block implementation because their interfaces/guarantees are already defined.
+**Result: PASS.** See `A0_EXIT_REVIEW.md`.
 
 ---
 
 # G0 — Foundations ✅ COMPLETE
 
-## Goal
+G0 established the Go runtime substrate: typed configuration/IDs/errors, SQLite + migrations, content-addressed Object Store, local cross-platform control transport, structured diagnostics, bounded protocol framing, race baseline and cross-platform CI.
 
-Create a tiny Go codebase implementing the architecture's foundational boundaries without agent behavior.
-
-## Delivered
-
-- Go 1.27 module and repository layout;
-- CLI/runtime daemon entry point and cancellation lifecycle;
-- structured `log/slog` diagnostics;
-- typed IDs/errors;
-- injectable deterministic clock/ID generation;
-- layered typed configuration;
-- SQLite storage implementation behind internal adapter;
-- content-addressed streaming Object Store;
-- ordered embedded SQL migration mechanism with checksums;
-- Unix-domain-socket local control on macOS/Linux;
-- Windows named-pipe local control;
-- bounded length-framed JSON control protocol;
-- bounded control connection concurrency;
-- runtime metrics snapshots and optional loopback-only pprof;
-- basic unit/integration/fault test setup;
-- SQLite hard-kill/reopen test foundation;
-- malformed/oversized IPC frame tests;
-- cross-platform GitHub Actions CI;
-- race-detector baseline.
-
-## Implemented baseline
-
-```text
-Go
-modernc.org/sqlite behind internal adapter (provisional/benchmarked)
-database/sql + explicit SQL
-SQLite WAL + foreign_keys + reliability-first synchronous mode
-SHA-256 content-addressed Object Store
-Unix domain socket / Windows named pipe IPC
-length-framed versioned JSON control protocol
-```
-
-## Preserved constraints
-
-- no TUI-owned canonical state;
-- no unbounded queues;
-- large object APIs stream via `io.Reader`/`io.Writer`;
-- storage health failures have explicit behavior;
-- standard library preferred where adequate;
-- no ORM in kernel storage;
-- no new architecture semantics invented in code;
-- no Agent Process/Event Ledger/model/World behavior leaked into G0.
-
-## G0 result
-
-**PASS.**
-
-Foundation implementation commit:
-
-```text
-76a36df20ed8d0097725ddf0a8ec4807607d5c42
-feat: implement G0 runtime foundations
-```
-
-GitHub Actions run `33062697653` passed on August 27, 2026:
-
-```text
-test (ubuntu-latest)  ✅
-test (macos-latest)   ✅
-test (windows-latest) ✅
-race                   ✅
-```
-
-The platform jobs passed `go test ./...`, `go vet ./...` and `go build ./cmd/go-agent`; the race job passed `go test -race ./...`.
-
-The previously listed G0 criterion “snapshots are rebuildable from ledger” is correctly a **G1 criterion**: G0 intentionally contains no Event Ledger. G0 provides the persistence/recovery substrate on which G1 proves deterministic snapshot + replay reconstruction.
-
-Longer SQLite driver soak/comparison and extended long-session stress remain empirical validation work inherited from A0. An executable baseline now exists in `LONG_DURATION_BENCHMARKS.md`; representative reference runs remain pending.
-
-See `G0_EXIT_REVIEW.md`.
+**Result: PASS.** See `G0_EXIT_REVIEW.md`.
 
 ---
 
 # G1 — Durable Agent Process + Event Ledger ✅ COMPLETE
 
-## Goal
+G1 implemented durable process identity/lifecycle/lineage, append-only causal events, deterministic replay/snapshots, idempotent commands, optimistic versioning and restart-safe supervision without one goroutine per waiting process.
 
-Prove the central process model before calling any LLM.
-
-## Deliverables
-
-### Agent Process
-
-- stable `AgentID`;
-- parent/child relationship metadata;
-- lifecycle states from accepted state machine;
-- root Intent object;
-- versioned status transitions;
-- durable sleep/wait representation foundations.
-
-### Event Ledger
-
-- append-only meaningful events;
-- causation/correlation IDs;
-- accepted global sequence + process-version model;
-- pure deterministic reducer;
-- versioned snapshot format;
-- reconstruct process from snapshot + tail events;
-- current process projection.
-
-### Runtime supervision foundation
-
-- activation of runnable durable processes;
-- canonical state independent from goroutine lifetime;
-- clean shutdown/recovery skeleton.
-
-### CLI inspection
-
-```text
-go-agent process create
-go-agent process inspect <id>
-go-agent process suspend <id>
-go-agent process resume <id>
-go-agent events <id>
-```
-
-## Killer tests
-
-1. create process;
-2. append state changes;
-3. hard-kill executable;
-4. restart;
-5. reconstruct exact logical state/version/lineage;
-6. verify no in-memory singleton was required;
-7. create thousands of waiting processes without one permanent goroutine each.
-
-## G1 result
-
-**PASS.**
-
-Validated on August 27, 2026 with:
-
-- exact state/version/lineage reconstruction after hard kill;
-- deterministic full replay and snapshot + tail reconstruction;
-- durable request-id idempotency;
-- optimistic process-version CAS and atomic ledger/projection/receipt commits;
-- stale wake rejection and durable RUNNING recovery;
-- parent/child lineage + causal references;
-- 10,000 waiting/sleeping-process supervision without one permanent goroutine per process;
-- reducer/event hot paths at zero allocations in benchmarks;
-- cross-platform daemon/client support including Windows named-pipe dialing.
-
-GitHub Actions run `33074043420` passed:
-
-```text
-test (ubuntu-latest)  ✅
-test (macos-latest)   ✅
-test (windows-latest) ✅
-race                   ✅
-```
-
-See `G1_EXIT_REVIEW.md`.
+**Result: PASS.** See `G1_EXIT_REVIEW.md`.
 
 ---
 
 # G2 — Minimal Agent Loop + Agent Syscalls ✅ COMPLETE
 
-## Goal
+G2 added provider-neutral streaming, deterministic fake/provider adapters, bounded model/tool output, `observe`/`execute`/`checkpoint`, workspace read/list/process actions and an attachable headless client.
 
-Run the smallest useful intelligent process through kernel boundaries.
-
-## Deliverables
-
-### Provider interface
-
-- provider-independent request/event types;
-- streaming;
-- cancellation;
-- token/cost usage accounting when available;
-- one frontier provider adapter;
-- one OpenAI-compatible adapter for local/vLLM/Ollama-style endpoints;
-- deterministic fake provider for tests.
-
-### Initial syscalls
-
-```text
-observe
-execute
-checkpoint
-```
-
-### Built-in actions
-
-- read file;
-- list directory;
-- run command with timeout/output limits.
-
-### Streaming architecture
-
-- model tokens use bounded/coalesced live stream;
-- final response persisted as object/artifact;
-- canonical events record invocation lifecycle, not one event per token;
-- command output streams to Object Store with bounded preview/tail.
-
-### UI
-
-A basic attachable client/CLI is enough. Do not build final TUI yet.
-
-## Completion criteria
-
-Agent can inspect a small repository, run a command and answer while every meaningful action is attributable in Ledger and large output cannot grow hot memory without bound.
-
-## G2 result
-
-**PASS.**
-
-Implemented on August 27, 2026 with:
-
-- provider-neutral messages, tool schemas, tool calls, usage and streaming events;
-- deterministic fake provider;
-- OpenAI Responses streaming adapter;
-- OpenAI-compatible streaming adapter for local endpoints;
-- durable `ModelInvocationStarted/Completed/Failed` lifecycle events;
-- `observe`, `execute` and `checkpoint` syscalls;
-- read-file/list-directory workspace actions;
-- argv-based command execution with cancellation, timeout, bounded preview and hard output quota;
-- streaming model/command bodies into the content-addressed Object Store;
-- bounded live presentation stream with gap-detectable offsets;
-- minimal model → syscall → model agent loop;
-- attachable `go-agentctl` run/attach client;
-- deterministic test proving observe → execute → final-answer flow;
-- explicit bounds on steps, tool calls, live bytes and G2 working context.
-
-Implementation commit:
-
-```text
-19f3fadcf0343cc53910dd52144bf3dc35d95bcb
-feat(g2): implement minimal agent loop and syscalls
-```
-
-GitHub Actions run `33083660845` passed:
-
-```text
-test (ubuntu-latest)  ✅
-test (macos-latest)   ✅
-test (windows-latest) ✅
-race                   ✅
-```
-
-See `G2_EXIT_REVIEW.md`.
+**Result: PASS.** See `G2_EXIT_REVIEW.md`.
 
 ---
 
 # G3 — Worlds + Authority + Effect System ✅ COMPLETE
 
-## Goal
+G3 made execution structurally controlled through typed Worlds, scoped capabilities/leases/delegation, canonical Effect classification, versioned Intent, Purpose-Carrying Actions, Action Proofs and fail-closed authorization before World execution.
 
-Make execution structurally controlled.
-
-## Deliverables
-
-### World API
-
-- `LocalWorld`;
-- action/result protocol;
-- process execution abstraction;
-- filesystem abstraction;
-- World lifecycle/Profile;
-- streamed output/cancellation contract;
-- platform process-tree adapter.
-
-### Capability system
-
-- filesystem read/write scopes;
-- process execution scopes;
-- network policy foundation;
-- delegation subset validation;
-- capability leases.
-
-### Effect system
-
-```text
-Pure
-Read
-Reversible
-Compensatable
-Irreversible
-```
-
-plus traits such as idempotency/retryability.
-
-### Intent-Based Authority foundation
-
-- immutable/versioned root Intent;
-- acceptance criteria;
-- allowed/forbidden effect domains;
-- Purpose-Carrying Actions;
-- Action Proof;
-- typed authorization outcomes.
-
-## Killer tests
-
-- child cannot acquire missing parent capability;
-- read-only agent cannot write even if model requests it;
-- expired lease fails deterministically;
-- denied action never reaches World;
-- prompt/tool content cannot mint authority;
-- model cannot downgrade Effect classification;
-- every security decision is causally visible.
-
-## G3 result
-
-**PASS.**
-
-Implemented on August 28, 2026 with:
-
-- typed World action/result/Profile contracts;
-- `LocalWorld` filesystem and process actions confined to a workspace root;
-- Unix process-group cancellation and Windows process-tree termination;
-- filesystem read/write, process execution and network capability domains;
-- scoped grants, leases and delegation-subset validation;
-- canonical Effect classification with idempotency/retryability traits;
-- versioned Intent policy with allowed/forbidden domains;
-- Purpose-Carrying Actions and kernel-generated Action Proofs;
-- typed authorization decisions and a security-decision sink;
-- `SecureWorld` authorization gate that refuses denied actions before World execution;
-- deterministic tests proving all G3 authority killer cases.
-
-Validation run `33203489779` covers `go test ./...`, `go vet ./...`, both binaries on Ubuntu/macOS/Windows, and `go test -race ./...`.
-
-See `G3_EXIT_REVIEW.md`.
+**Result: PASS.** See `G3_EXIT_REVIEW.md`.
 
 ---
 
 # G4 — Cognitive MMU v0 ✅ COMPLETE
 
-## Goal
+G4 replaced flat conversation-history memory with persisted semantic Context Pages, bounded working-set planning, explicit recall, Context Manifests, structured compaction, lazy materialization and bounded caches.
 
-Stop treating conversation history as canonical memory.
-
-## Deliverables
-
-- semantic Context Pages;
-- token estimates;
-- persisted metadata/object content;
-- deterministic tiered working-set builder;
-- explicit `recall()`;
-- Context Manifest;
-- basic structured compaction;
-- bounded eviction/cache behavior.
-
-## Killer tests
-
-- accumulated history larger than model context still allows useful work;
-- hard token budget never exceeded;
-- old relevant fact explicitly recalled;
-- 100k-page corpus does not materialize all bodies;
-- hot memory/context remains bounded as history grows.
-
-## G4 result
-
-**PASS.**
-
-G4 implements persisted semantic Context Pages, SQLite FTS retrieval, deterministic tiered working-set construction, explicit recall leases, Context Manifests, structured compaction, supersession handling, bounded token-estimate caching and lazy body materialization.
-
-The historical final CI/race pass deferred at G4 closure was later covered by the integrated G5/main validation. Long-duration empirical calibration now has an executable soak harness; reference 1h/8h/24h results remain pending.
-
-See `G4_EXIT_REVIEW.md` and `LONG_DURATION_BENCHMARKS.md`.
+**Result: PASS.** See `G4_EXIT_REVIEW.md`.
 
 ---
 
 # G5 — Recursive Agent Processes ✅ COMPLETE
 
-## Goal
+G5 added bounded recursive delegation with durable spawn/wait, authority subsets, hierarchical budget reservation/settlement, bounded mailboxes, cancellation trees, wait-cycle rejection, fan-out/depth limits and structured result/evidence contracts.
 
-Bring recursive-agent benefits into the durable process/security/economy model.
-
-## Deliverables
-
-- durable `spawn()` validate/reserve/create protocol;
-- child Task Intent and authority subset;
-- result/evidence contract;
-- bounded messaging/mailboxes;
-- durable parent waits;
-- cancellation tree;
-- wait-for cycle detection;
-- fan-out/depth/fairness controls;
-- budget reservations/settlement.
-
-## Killer test
-
-Root delegates three repository investigations in parallel, survives daemon restart with child pending, and receives structured evidence without importing whole child transcripts.
-
-## G5 result
-
-**PASS.**
-
-G5 adds hierarchical budget reservation/settlement, durable bounded mailboxes, restart-safe parent waits, wait-cycle rejection, cancellation propagation, fan-out/depth/parallelism limits, fair per-root admission, result/evidence contracts and explicit completed-work reuse.
-
-The integrated G5 head passed cross-platform tests/vet/builds and the race detector.
-
-See `G5_EXIT_REVIEW.md`.
+**Result: PASS.** See `G5_EXIT_REVIEW.md`.
 
 ---
 
 # G6 — Cognitive Scheduler v0 ✅ COMPLETE
 
-## Goal
+G6 decoupled Agent identity from a single model using hard eligibility filtering, deterministic utility scoring, provider health/circuit breaking, bounded fallback, privacy/locality constraints, durable model budgets and fairness/global/root/provider slots.
 
-Stop binding an Agent Process to one model.
-
-## Deliverables
-
-- model registry/Profile;
-- Cognitive Task descriptor;
-- hard eligibility filtering;
-- cost/latency/quality score policy;
-- runtime provider health/circuit breaker;
-- durable budget reservation/settlement;
-- fallback;
-- privacy/locality constraints;
-- fairness/global/per-root/provider slots;
-- routing decision events/metrics;
-- daemon/config integration;
-- MMU/invocation integration;
-- static-baseline evaluation.
-
-## Initial policy
-
-Deterministic rules first.
-
-No learned router in v0. Shadow/advisory routing cannot weaken hard constraints.
-
-## Evaluation
-
-Quality-first, cost-first and latency-first routing are compared against strongest, cheapest and fastest static baselines on a controlled profile matrix. Balanced routing remains an explicit utility tradeoff.
-
-## G6 result
-
-**PASS.**
-
-G6 routes each bounded MMU-built invocation independently while preserving stable Agent identity. It includes hard context/capability/privacy/policy/health/quality/reliability/budget/deadline filtering, deterministic scoring, provider telemetry/circuit breaking, bounded fallback, global/root/provider slots and durable routing events.
-
-Root model-budget accounting is persisted in SQLite by `0006_cognitive_scheduler.sql`. Limits, spent usage and active reservations survive close/reopen; overspend remains rejected after restart and settlement stays exact-once.
-
-GitHub Actions run `34160212580` passed cross-platform tests/vet/builds and `go test -race ./...` on the durable-budget implementation.
-
-See `G6_EXIT_REVIEW.md` and `COGNITIVE_SCHEDULER_V0.md`.
+**Result: PASS.** See `G6_EXIT_REVIEW.md` and `COGNITIVE_SCHEDULER_V0.md`.
 
 ---
 
 # G7 — Workspace/OCI World + Agent Transactions ✅ COMPLETE
 
-## Goal
-
-Make speculative work isolated and reversible where guarantees permit.
-
-## Deliverables
-
-### WorkspaceWorld
-
-- Git-aware isolated workspace;
-- captured dirty/untracked base policy;
-- target divergence detection;
-- three-way promotion.
-
-### OCI World
-
-- controlled mounts;
-- restricted network default;
-- CPU/memory/time limits;
-- secret binding;
-- snapshot/fork Profile.
-
-### Transaction API
+G7 introduced isolated Git `WorkspaceWorld`, conservative OCI execution and durable transactions:
 
 ```text
 begin
@@ -570,174 +138,62 @@ prepare
 commit / rollback / reconcile
 ```
 
-## Killer tests
+Promotion is three-way, target divergence is detected, unknown dispatched outcomes preserve uncertainty and commit policy is revalidated instead of trusting the client.
 
-- breaking multi-file change fails verification and rolls back exact defined state;
-- kill runtime at each transaction boundary;
-- crash during APPLY enters reconciliation, never false commit;
-- irreversible effect cannot be falsely rolled back.
-
-## G7 result
-
-**PASS.**
-
-G7 implements a Git-aware `WorkspaceWorld` that captures tracked dirty/untracked base state without mutating the user's index, isolates mutations in detached worktrees, detects target divergence and performs promotion through an explicit three-way Git merge with a short target-scoped promotion lease.
-
-The OCI adapter provides controlled bind mounts, network-off/read-only/cap-drop/no-new-privileges defaults, optional CPU/memory/PID/time limits and model-opaque secret-file binding. Its Profile deliberately reports snapshot/fork/promotion as unsupported until those guarantees can be proven rather than faking transaction semantics.
-
-Agent Transactions persist their state, prepared promotion plans, effects, verifications and audit events in SQLite migration `0007_agent_transactions.sql`. The runtime records DISPATCH before crossing the World boundary, defers irreversible effects, sends unknown dispatched outcomes to `NEEDS_RECONCILIATION`, prevents false rollback of unresolved/externally visible effects and revalidates current policy/capability through a commit guard before PREPARE and COMMIT.
-
-Implementation head `da1ce88159bf8f3d51606222fb64413827dd2743` passed GitHub Actions run `34203844173` across Ubuntu/macOS/Windows plus the race detector. Long-duration workflow run `34203844315` also passed on that implementation head.
-
-See `G7_EXIT_REVIEW.md`.
+**Result: PASS.** See `G7_EXIT_REVIEW.md`.
 
 ---
 
 # G8 — Cognitive Fork / Safe Execution Editing ✅ COMPLETE
 
-## Goal
+G8 added quiescent forkable checkpoints, explicit Execution Frontier, isolated Agent/World futures, branch-local cognitive overlays, independent budget reservations, deterministic objective evaluation, selective winner promotion and idempotent cleanup/retention.
 
-Explore alternative futures in parallel without rewriting history.
+Historical checkpoint authority cannot resurrect revoked rights and speculative irreversible effects fail closed.
 
-## Deliverables
-
-- Forkable quiescent checkpoint;
-- Execution Frontier;
-- isolated branch Agent/World state;
-- branch-local memory/context overlay;
-- independent budget reservations;
-- objective evaluator;
-- three-way World merge;
-- selective cognitive promotion;
-- promotion lease;
-- restore-as-new-timeline;
-- cleanup/retention.
-
-## Killer demonstration
-
-Implement two solutions to a performance problem, benchmark both in isolated forks, explain comparison and promote only winner with no mutation leakage or history truncation.
-
-## G8 result
-
-**PASS.**
-
-G8 implements quiescent forkable/committable checkpoints with explicit Execution Frontier, exact process-state integrity, required-result preservation, restore-as-new-Agent-timeline semantics, isolated Workspace forks from the checkpoint's immutable Git base, shared immutable Git objects with distinct mutable worktrees, branch-local cognitive overlays, independent pre-admission budget reservations, fork-namespaced actions, deterministic evidence-backed branch evaluation, persisted winner reason and selective provenance-aware cognitive promotion.
-
-Historical checkpoint authority cannot resurrect revoked rights: branch capabilities and allowed Intent domains are the intersection of checkpoint and current authority, while forbidden domains/acceptance criteria accumulate conservatively. Speculative irreversible effects are denied before reaching the inner World.
-
-Winner promotion reuses G7's three-way target/base/source merge, target-scoped promotion lease and reconciliation semantics. Cleanup is idempotent across winner/loser paths and releases owned promotion lease, worktree, synthetic Git refs and unused budget before retention-based purge.
-
-SQLite migration `0008_cognitive_forks.sql` persists checkpoints, Execution Frontier, authority, fork groups/branches, budget state, objective evaluation and cognitive overlays.
-
-The deterministic validation suite includes the two-solution killer demonstration plus Execution Frontier, SQLite persistence, Workspace isolation/COW, authority-intersection, speculative-effect and full cleanup tests. GitHub Actions was intentionally skipped for this closure pass; no unobserved green CI/local-test result is claimed.
-
-See `G8_EXIT_REVIEW.md`.
+**Result: PASS.** See `G8_EXIT_REVIEW.md`.
 
 ---
 
 # G9 — Epistemic Memory + Truth Maintenance ✅ COMPLETE
 
-## Goal
+G9 replaced flat memory snippets with immutable/versioned Evidence, Belief lifecycle/history, structured confidence, scope/temporal validity, contradiction/dependency edges and bounded localized truth-maintenance propagation.
 
-Replace flat snippets with evidence-aware knowledge.
+Speculative branch knowledge remains isolated until explicit promotion and epistemic confidence never mints authority.
 
-## Deliverables
-
-- immutable/versioned Evidence store;
-- platform provenance;
-- Belief lifecycle;
-- scope/temporal validity;
-- structured confidence metadata;
-- contradiction/dependency edges;
-- localized causal invalidation;
-- Cognitive MMU integration;
-- branch-local memory overlays.
-
-## Killer test
-
-Agent learns repository architecture fact; source changes; old belief is downgraded and cannot silently rank as trusted while original evidence/history remains inspectable.
-
-## G9 result
-
-**PASS.**
-
-G9 implements durable immutable/versioned Evidence with source/platform provenance, durable Belief lifecycle/history, structured confidence, scope and temporal validity, support/contradiction/dependency relationships, freshness/version tracking and epistemic retrieval that preserves status and provenance rather than flattening knowledge back into unqualified snippets.
-
-Truth maintenance is event-driven, durable and localized. Reverse indexes map Evidence to affected Beliefs and Beliefs to downstream dependents; persisted propagation jobs use bounded depth/work, unique visits and restart-safe continuation, so ordinary invalidation does not require a whole-graph scan and cycles cannot create unbounded propagation loops.
-
-G9 integrates with the Cognitive MMU and with G8 branch-local overlays/selective promotion. Speculative branch knowledge remains isolated until explicit winner promotion, and epistemic confidence remains informational: it cannot mint capabilities, widen Intent or bypass World authorization.
-
-SQLite migrations `0009` and `0010` persist the epistemic graph, history, usage metadata and truth-maintenance jobs/queue state. MEM-001 → MEM-015 contract tests and a tagged 1,000,000-edge scale scenario are committed.
-
-Final GitHub Actions CI is intentionally skipped as a G9 exit gate by project decision. Intermediate CI was used diagnostically and exposed the G8 SQLite checkpoint/WAL method collision, which was corrected. No unobserved final green CI result is claimed.
-
-See `G9_EXIT_REVIEW.md`.
+**Result: PASS.** See `G9_EXIT_REVIEW.md`.
 
 ---
 
-# G10 — Context Faults + Cognitive MMU v2 🟢 READY
+# G10 — Context Faults + Cognitive MMU v2 ✅ COMPLETE
 
-## Goal
-
-Make missing knowledge a typed runtime paging event.
-
-## Deliverables
-
-- stable semantic cognitive references;
-- Reference/Recall/Evidence/Freshness/Dependency/Representation faults;
-- context leases;
-- dependency-driven page loading;
-- fault budgets/storm protection;
-- structured compaction ↔ evidence paging;
-- improved working-set planning.
-
-## Requirement
-
-Faults remain provider-independent at invocation/tool boundaries and observable/replayable.
-
----
-
-# G11 — Adaptive Teams + Agent Negotiation
-
-## Goal
-
-Move beyond static multi-agent graphs.
-
-## Deliverables
-
-- team proposal/decomposition;
-- scheduler admission;
-- temporary specialist profiles;
-- bounded claim/challenge/evidence/counterexample/revision protocol;
-- disagreement deadlines/round limits;
-- escalation.
-
-## Killer demonstration
-
-Reviewer finds race condition, implementer disputes it, reviewer supplies reproducer and they converge—or escalate deterministically—without unlimited dialogue.
-
----
-
-# G12 — Verified Continual Improvement
-
-## Goal
-
-Allow system improvement without uncontrolled self-modification.
-
-## Deliverables
-
-Versioned cognitive artifacts:
+G10 made missing cognitive state an explicit provider-independent runtime paging event with stable semantic references and typed:
 
 ```text
-skills
-prompts
-agent profiles
-routing policies
-context policies
-memory policies
+ReferenceFault
+RecallFault
+EvidenceFault
+FreshnessFault
+DependencyFault
+RepresentationFault
 ```
 
-Lifecycle:
+It added context leases, dependency-driven loading, fault budgets/storm protection and evidence-aware working-set planning.
+
+**Result: PASS.** See `G10_EXIT_REVIEW.md`.
+
+---
+
+# G11 — Adaptive Teams + Agent Negotiation ✅ COMPLETE
+
+G11 added durable temporary specialist teams plus bounded evidence-oriented disagreement. Team formation is scheduler/policy admitted and uses the existing G5 spawn/authority/budget boundaries. Negotiation has finite rounds/turns/deadlines and deterministic escalation.
+
+**Result: PASS.** See `G11_EXIT_REVIEW.md` and `ADAPTIVE_TEAMS_AND_AGENT_NEGOTIATION.md`.
+
+---
+
+# G12 — Verified Continual Improvement ✅ COMPLETE
+
+G12 added immutable versioned cognitive artifacts for skills, prompts, profiles, routing/context/memory policies and evaluators with the lifecycle:
 
 ```text
 hypothesis
@@ -749,211 +205,152 @@ hypothesis
 → rollback
 ```
 
-## Hard invariants
+Hard invariants prevent capability expansion, root-Intent/effect-floor rewriting, scope widening and security/verification regression. Historical invocation attribution keeps exact artifact versions.
 
-- cannot expand capabilities;
-- cannot rewrite root Intent/effect floor;
-- historical invocations retain exact artifact versions;
-- security regression rejects candidate even if quality improves.
+**Result: PASS.** See `G12_EXIT_REVIEW.md` and `VERIFIED_CONTINUAL_IMPROVEMENT.md`.
 
 ---
 
-# G13 — Production TUI / Interactive Agent Workspace
+# G13 — Production TUI / Interactive Agent Workspace ✅ COMPLETE
 
 ## Goal
 
-Turn the durable runtime into a **delightful, fast and deeply inspectable terminal product** that is excellent for both pair-programming and supervising long-running multi-agent work.
+Turn the durable runtime into a fast, inspectable terminal product for pair-programming and supervising long-running multi-Agent work while keeping canonical state in the daemon.
 
-G13 should combine the strongest interaction ideas from Claude Code, Codex, Grok Build and Pi without cloning any one product. The TUI remains a replaceable client of the daemon and never owns canonical Agent state.
+## Delivered
 
-See `PRODUCTION_TUI_WORKSPACE.md` for the detailed product contract.
+### Production terminal client
 
-## Product principles
+- dedicated `go-agent-tui` fullscreen Bubble Tea v2 client;
+- ASK / PLAN / ACT / REVIEW / OBSERVE modes;
+- adaptive wide/medium/narrow layouts;
+- keyboard-first workflow and command palette;
+- optional mouse-wheel history navigation;
+- dark/light themes;
+- configurable keymaps, command aliases, refresh cadence, inspector cadence, FPS and cache limits;
+- Unicode-safe text and resize behavior.
 
-- keyboard-first, mouse-capable fullscreen experience;
-- progressive disclosure: simple chat by default, deep runtime inspection on demand;
-- conversation remains fluid during tools, subagents and long tasks;
-- every important Agent operation has headless/runtime API parity;
-- no hidden authority: plans/approvals are UX, runtime capabilities/effects remain authoritative;
-- UI work scales with the visible viewport and active state, not Agent age/history size;
-- visual polish is a product requirement, not an afterthought.
+### Bounded workspace projection
 
-## Inspiration to keep
+- cursor-based attach/refresh;
+- bounded process-tree and conversation viewport;
+- on-demand older-history paging;
+- explicit resynchronization when the client falls behind instead of unbounded presentation queues;
+- bounded local block cache;
+- large artifacts remain references;
+- private model reasoning is never projected into visible blocks.
 
-### Claude Code
+### Agent cockpit and review
 
-- low-friction conversational workflow;
-- clear plan/act and permission boundaries;
-- compact tool/action progress;
-- strong keyboard ergonomics and project customization.
+- durable root/child Agent tree;
+- focus switching without stopping siblings;
+- steering versus queued follow-up semantics;
+- suspend/resume through runtime APIs;
+- plan-step review and targeted feedback;
+- diff-file/hunk review and targeted feedback.
 
-### Codex
+### G7/G8-native UX
 
-- first-class multi-agent/task supervision;
-- parallel work that remains understandable;
-- goal + success-criteria oriented execution;
-- annotation/review workflows around produced work.
-
-### Grok Build
-
-- rich mouse-interactive fullscreen TUI;
-- dedicated plan viewer;
-- approve/comment/rewrite individual plan steps;
-- high-quality inline diff review;
-- discoverable skills/plugins/hooks/MCP/subagents.
-
-### Pi
-
-- composable interaction primitives;
-- themes/extensions/keymaps;
-- model switching;
-- tree-structured history;
-- steer-running-agent vs queued-follow-up distinction;
-- RPC/headless parity.
-
-## Core surfaces
+Transactions are operable through the daemon/control protocol:
 
 ```text
-adaptive status/header
-Agent/task tree
-virtualized conversation
-composer + steering/follow-up queue
-command palette
-plan workspace
-diff/change review
-transaction inspector
-fork comparison
-Context/MMU inspector
-authority/approval inspector
-model/scheduler inspector
-history tree/search/bookmarks
-artifacts/test output viewer
+verify
+prepare
+commit
+rollback
+reconcile
+resolve uncertain effect
 ```
 
-## Required interaction modes
+The daemon revalidates current process lifecycle/root Intent at PREPARE/COMMIT boundaries. `NEEDS_RECONCILIATION` is preserved honestly and never displayed as false success.
+
+Fork inspection exposes candidate branches, spend, evaluation, selection state and winner rationale.
+
+### Runtime inspectors
+
+The workspace exposes bounded summaries for:
+
+- Context/MMU and Context Faults;
+- model/provider/scheduler routing and budgets;
+- Intent/authority projection;
+- G7 transactions;
+- G8 forks;
+- G11 teams;
+- G12 verified improvements.
+
+### Performance and platform gates
+
+The Linux CI runs bounded G13 benchmarks in addition to tests/vet/builds. The final code closure run `34238313757` passed:
 
 ```text
-ASK
-PLAN
-ACT
-REVIEW
-OBSERVE
+test (ubuntu-latest)  ✅
+test (macos-latest)   ✅
+test (windows-latest) ✅
+race                   ✅
 ```
 
-Modes improve UX but never weaken capability, Intent, Effect or World enforcement.
-
-## Agent cockpit
-
-The user can inspect root/child Agents with state, task, model, World, elapsed time, budget/cost, active action and blocked reason; switch focus without stopping siblings; steer one Agent while others continue; and consume structured child evidence without importing full transcripts.
-
-Large process trees must be virtualized/filterable.
-
-## Plan + review workflow
-
-- complex tasks can enter PLAN before mutation;
-- hierarchical plan with dependencies/status;
-- inline comments on individual steps;
-- rewrite selected step without regenerating everything;
-- approve all or selected steps;
-- explicit PLAN → ACT transition;
-- clean diff review after execution;
-- comment on diff hunks and send feedback back to the active Agent.
-
-## G7/G8-native UX
-
-Transactions and forks are first-class UI concepts:
-
-- visible transaction state and verification results;
-- commit/rollback/reconcile controls only when semantically valid;
-- prominent `NEEDS_RECONCILIATION` uncertainty rather than false success;
-- speculative vs promoted changes clearly distinguished;
-- branch/fork tree, side-by-side candidate comparison, tests/benchmarks/diffs and winner promotion after G8.
-
-## Context / authority visibility
-
-The TUI should expose:
-
-- MMU working-set occupancy/pages/recalls/Context Faults;
-- model/provider/routing objective and fallback state;
-- capabilities, Effect class and World guarantees for approval requests;
-- cost/budget summaries;
-- causal security denials without cluttering normal conversation.
-
-Hidden model reasoning is not displayed; runtime-visible progress/state is.
-
-## Themes and customization
-
-- polished dark default + light theme;
-- truecolor with graceful terminal fallbacks;
-- declarative themes and semantic color tokens;
-- configurable keymaps;
-- command/skill palette;
-- customizable status-line segments;
-- safe external/RPC extension points rather than unsafe kernel-side UI plugins.
-
-## Performance gates
-
-Initial engineering targets on a normal developer machine:
+The matrix builds:
 
 ```text
-keypress → visible update p95          < 50 ms
-stream render target                   20–30 updates/s
-idle CPU attached                      near-zero / < 1% typical
-100k-block local attach                < 500 ms target
-normal viewport resize p95             < 50 ms
-history/render memory                  bounded by viewport/cache
+./cmd/go-agent
+./cmd/go-agentctl
+./cmd/go-agent-tui
 ```
 
-These targets may be calibrated empirically, but G13 cannot close with full-history rendering, unbounded presentation queues or responsiveness that degrades linearly with session age.
-
-## Killer demonstrations
-
-1. start a long task, kill the TUI, let runtime/subagents continue, relaunch and instantly reattach to current state;
-2. open/search/resize/scroll a 100,000-block synthetic Agent session with multi-GB referenced artifacts while memory stays bounded;
-3. supervise at least three child Agents in parallel, steer one and queue a follow-up to another without stopping siblings;
-4. review/comment/rewrite a plan, execute in WorkspaceWorld, inspect diff/tests, verify and commit through the G7 transaction UI;
-5. force `NEEDS_RECONCILIATION` and prove the TUI never presents a false rollback/commit;
-6. after G8, compare two fork candidates side by side and promote only the winner;
-7. complete the core workflow with keyboard only.
-
-## Completion criteria
+Representative G13 benchmark results are approximately:
 
 ```text
-production fullscreen TUI
-keyboard-first + optional mouse workflow
-virtualized long conversation/history
-first-class plan and diff review
-multi-Agent cockpit
-G7 transaction operation/inspection
-G8 fork comparison when available
-MMU/context inspector
-authority/approval inspector
-model/scheduler visibility
-themes + keymaps + command palette
-headless/runtime API parity
-macOS/Linux/Windows terminal matrix
-100k-block responsiveness benchmark
-TUI crash never kills Agent work
+100k-history bounded retention   ~0.08 ms/op
+normal viewport redraw           ~2.75 ms/op
 ```
+
+Both are well below the initial 50 ms local viewport engineering target.
+
+## G13 result
+
+**PASS.**
+
+The TUI remains a replaceable client. Detach/crash does not cancel durable Agent work by itself, mutations retain headless/control-protocol parity, history/render memory is bounded, transaction uncertainty remains explicit, and authority cannot be minted by UI approval.
+
+See `G13_EXIT_REVIEW.md` and `PRODUCTION_TUI_WORKSPACE.md`.
 
 ---
 
-# G14 — Distributed Worlds / Workers
+# G14 — Distributed Worlds / Workers 🟢 READY
 
 ## Goal
 
-Run same durable Agent Process abstraction across local and remote compute.
+Run the same durable Agent Process abstraction across local and remote compute without binding Agent identity to worker location.
 
-Candidates:
+## Candidate deliverables
 
-- SSH worker;
+- worker capability/profile protocol;
+- SSH worker adapter;
 - remote Go worker protocol;
 - Kubernetes jobs/workspaces;
-- GPU/local inference node routing;
-- distributed object/blob storage;
-- worker leases/heartbeats/reconciliation.
+- GPU/local-inference node routing;
+- distributed object/blob storage boundary;
+- worker leases and heartbeats;
+- disconnection/unknown-outcome reconciliation;
+- remote World lifecycle and cancellation semantics;
+- locality-aware scheduler integration;
+- authority-preserving remote action dispatch;
+- cross-worker transaction/fork compatibility where guarantees permit.
 
-Agent identity remains independent from worker location.
+## Required invariants
+
+- Agent identity remains independent from worker location;
+- remote execution cannot widen capabilities or Intent;
+- worker loss cannot silently become successful action completion;
+- external-effect uncertainty enters explicit reconciliation;
+- bounded queues/backpressure remain mandatory across network boundaries;
+- durable state remains reconstructable without a live worker process;
+- object transfer is streamed/content-addressed rather than hot-memory buffered;
+- scheduler routing preserves privacy/locality requirements.
+
+## Initial killer demonstration
+
+Run a durable Agent with work split between a local World and a remote worker, terminate the remote worker during an action, restart/reconcile it, and prove that Agent identity/history remains stable while unknown external outcomes are never reported as false success.
 
 ---
 
@@ -961,9 +358,9 @@ Agent identity remains independent from worker location.
 
 ## Goal
 
-Make complex agent behavior understandable and replayable beyond the everyday G13 workspace.
+Make complex Agent behavior understandable and replayable beyond the everyday G13 workspace.
 
-## Deliverables
+## Planned deliverables
 
 - advanced process/team tree observability;
 - causal graph;
@@ -976,7 +373,7 @@ Make complex agent behavior understandable and replayable beyond the everyday G1
 - historical replay/fork;
 - OpenTelemetry export.
 
-G15 builds deep forensic/debugging workflows on top of the production interaction primitives established by G13 rather than postponing the basic product UI until observability work.
+G15 builds forensic/debugging workflows on top of the product interaction primitives established by G13 rather than moving canonical state into an observability UI.
 
 ---
 
@@ -996,54 +393,43 @@ inspectable causality
 no prompt-only security
 ```
 
-A feature is not done if happy path works but it leaks memory/goroutines, blocks on slow clients or has undefined crash behavior.
+A feature is not done if its happy path works but it leaks memory/goroutines, blocks indefinitely on slow clients, widens authority, hides unknown outcomes or has undefined crash behavior.
 
 ---
 
-# Product slices
+# Product evolution
 
-A credible first coding-agent experience emerged around G5:
+A credible coding-agent experience emerged around G5 with a durable daemon, attachable terminal, persistent Agent Processes, streaming models, filesystem/shell actions, Event Ledger, authority/effects, bounded context and recursive subagents.
 
-```text
-single Go binary distribution
-local durable daemon
-attachable terminal
-persistent Agent Processes
-model streaming
-filesystem/shell actions
-Event Ledger
-capabilities/effects/Intent
-bounded context
-recursive subagents
-```
+G6 added model/resource scheduling. G7 added isolated workspace/OCI execution and durable transactions. G8 added safe alternative futures and objective winner promotion. G9 added evidence-aware memory and localized truth maintenance. G10 added typed cognitive paging. G11 added bounded adaptive teams/negotiation. G12 added controlled verified self-improvement.
 
-G6 added model/resource scheduling and restart-safe model-budget accounting. G7 added isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8 added safe execution editing, isolated alternative Agent/World futures, objective winner selection and selective promotion. G9 adds evidence-aware memory and localized truth maintenance. G10 now builds typed context faults and MMU v2 on that substrate.
+**G13 is the completed productization generation:** it exposes these primitives through a production interactive terminal workspace while preserving daemon durability and headless parity.
 
-**G13 is the deliberate productization generation:** it turns these runtime primitives into a polished interactive terminal workspace inspired by the best modern coding-agent UX while preserving go-agent's daemon durability, inspectability and headless parity. G14 then expands execution across remote workers; G15 adds deep production observability/time-travel debugging.
+**G14 is now the immediate implementation target:** distribute Worlds/workers without weakening identity, authority, boundedness or reconciliation semantics. G15 then adds deep production observability/time-travel debugging.
 
 ---
 
 # Testing philosophy
 
-Most kernel semantics must be testable without an LLM.
+Most kernel semantics must remain testable without an LLM.
 
 Use deterministic fake providers and fake Worlds for:
 
 - process recovery;
-- authority subset;
-- denied effects;
-- transaction rollback;
+- authority subset and denied effects;
+- transaction rollback/reconciliation;
 - fork isolation;
 - budget accounting;
 - context budgets/faults;
 - unknown outcomes;
-- slow consumers;
+- slow consumers/backpressure;
 - crash recovery;
 - Truth Maintenance propagation;
 - scheduler fairness;
-- TUI projection/virtualization and reconnect behavior.
+- TUI projection/virtualization/reconnect behavior;
+- distributed-worker failure/reconciliation in G14.
 
-Real-model tests evaluate harness/model quality separately.
+Real-model tests evaluate model/harness quality separately from kernel correctness.
 
 Long-duration validation uses tagged provider-free soak scenarios and explicit boundedness criteria. See `LONG_DURATION_BENCHMARKS.md`.
 
@@ -1051,16 +437,6 @@ Long-duration validation uses tagged provider-free soak scenarios and explicit b
 
 # Immediate next step
 
-**G10 — Context Faults + Cognitive MMU v2 is READY.**
+**G14 — Distributed Worlds / Workers is READY.**
 
-Build typed runtime paging events on top of G9's durable epistemic graph with:
-
-- stable semantic cognitive references;
-- Reference/Recall/Evidence/Freshness/Dependency/Representation faults;
-- context leases;
-- dependency-driven page loading;
-- fault budgets and storm protection;
-- structured compaction ↔ evidence paging;
-- improved working-set planning.
-
-G10 must keep faults provider-independent at invocation/tool boundaries, observable and replayable, while preserving G9's provenance/freshness/dependency semantics instead of degrading them back into flat context snippets.
+The next implementation pass should preserve all G0–G13 invariants while introducing remote worker identity/profile, transport, leases/heartbeats, streamed object movement, scheduler locality and explicit failure/reconciliation semantics.

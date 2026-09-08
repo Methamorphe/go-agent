@@ -36,9 +36,13 @@ jobs:
         if: runner.os == 'Linux'
         run: go test -tags=soak -run '^$' ./internal/mmu ./internal/storage/sqlite
 
+      - name: G13 bounded TUI benchmarks
+        if: runner.os == 'Linux'
+        run: go test -run '^$' -bench '^BenchmarkG13' -benchmem -benchtime=250ms ./internal/tui
+
       - run: go vet ./...
 
-      - run: go build ./cmd/go-agent ./cmd/go-agentctl
+      - run: go build ./cmd/go-agent ./cmd/go-agentctl ./cmd/go-agent-tui
 
   race:
     runs-on: ubuntu-latest

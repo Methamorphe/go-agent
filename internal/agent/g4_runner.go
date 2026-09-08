@@ -64,6 +64,7 @@ type G4Runner struct {
 	providerFactory ProviderFactory
 	cfg             G4RunnerConfig
 	g6              *g6State
+	interactive     *Runner
 }
 
 func NewG4(logger G4Logger, processes ProcessAPI, objects *objectstore.Store, ids G4IDGenerator, runtimeID id.RuntimeInstanceID, memory *mmu.Manager) *G4Runner {
@@ -91,10 +92,18 @@ func NewG4WithProviderFactory(logger G4Logger, processes ProcessAPI, objects *ob
 		logger: logger, processes: processes, objects: objects, ids: ids, runtimeID: runtimeID,
 		live: live.New(live.DefaultMaxStreams, live.DefaultStreamBytes), memory: memory,
 		providerFactory: factory, cfg: cfg,
+		interactive: &Runner{processes: processes, ids: ids, sessions: make(map[id.AgentID]*interactiveSession)},
 	}
 }
 
 func (r *G4Runner) Live(agentID id.AgentID) (live.Snapshot, bool) { return r.live.Snapshot(agentID) }
+
+func (r *G4Runner) SendMessage(ctx context.Context, request SendMessageRequest) (SendMessageResult, error) {
+	if r == nil || r.interactive == nil {
+		return SendMessageResult{}, errs.New(errs.CodeUnavailable, "agent.message", "interactive runtime is unavailable")
+	}
+	return r.interactive.SendMessage(ctx, request)
+}
 
 func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, error) {
 	if r.memory == nil {
@@ -153,6 +162,14 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 	if err != nil {
 		return RunResult{}, err
 	}
+
+	session, err := r.interactive.openInteractiveSession(request.AgentID)
+	if err != nil {
+		r.bestEffortYield(ctx, state, meta, "interactive_session_unavailable")
+		return RunResult{}, err
+	}
+	defer r.interactive.closeInteractiveSession(request.AgentID, session)
+
 	if err := r.live.Begin(request.AgentID, time.Now().UTC()); err != nil {
 		r.bestEffortYield(ctx, state, meta, "live_stream_unavailable")
 		return RunResult{}, err
@@ -193,6 +210,21 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 	var finalRef, finalPreview string
 
 	for step := 1; step <= request.MaxSteps; step++ {
+		state, steering, err := r.interactive.drainSteering(ctx, session, state, meta)
+		if err != nil {
+			r.bestEffortYield(ctx, state, meta, "interactive_message_recording_failed")
+			return RunResult{}, err
+		}
+		if len(steering) > 0 {
+			for index, text := range steering {
+				recent = append(recent, provider.Message{Role: provider.RoleUser, Parts: []provider.ContentPart{provider.TextPart(text)}})
+				if _, rememberErr := r.remember(ctx, request.AgentID, mmu.PageUserMessage, fmt.Sprintf("interactive:steer:%d:%d", step, index), text, 0.95); rememberErr != nil {
+					return RunResult{}, rememberErr
+				}
+			}
+			query = truncateUTF8(strings.Join(append([]string{query}, steering...), "\n"), g4MaxQueryBytes)
+		}
+
 		messages, manifest, buildErr := r.buildWorkingMessages(ctx, request, tools, mandatory, allowedScopes, recent, query)
 		if buildErr != nil {
 			r.bestEffortYield(ctx, state, meta, "context_budget_impossible")
@@ -242,6 +274,26 @@ func (r *G4Runner) Run(ctx context.Context, request RunRequest) (RunResult, erro
 				r.bestEffortYield(ctx, state, meta, "empty_model_response")
 				return RunResult{}, errs.New(errs.CodeUnavailable, "agent.g4.run", "model returned neither text nor tool calls")
 			}
+
+			var continuation []string
+			var hasContinuation bool
+			state, continuation, hasContinuation, err = r.interactive.finalContinuation(ctx, session, state, meta)
+			if err != nil {
+				r.bestEffortYield(ctx, state, meta, "interactive_message_recording_failed")
+				return RunResult{}, err
+			}
+			if hasContinuation {
+				recent = []provider.Message{{Role: provider.RoleAssistant, Parts: []provider.ContentPart{provider.TextPart(truncateUTF8(outcome.TextPreview, g4MaxAssistantMemoryBytes))}}}
+				for index, text := range continuation {
+					recent = append(recent, provider.Message{Role: provider.RoleUser, Parts: []provider.ContentPart{provider.TextPart(text)}})
+					if _, rememberErr := r.remember(ctx, request.AgentID, mmu.PageUserMessage, fmt.Sprintf("interactive:follow-up:%d:%d", step, index), text, 0.95); rememberErr != nil {
+						return RunResult{}, rememberErr
+					}
+				}
+				query = truncateUTF8(strings.Join(append([]string{state.RootIntent.Goal, outcome.TextPreview}, continuation...), "\n"), g4MaxQueryBytes)
+				continue
+			}
+
 			expected = state.Version
 			completed, err := r.processes.Complete(ctx, request.AgentID, &expected, outcome.ResponseRef, meta)
 			if err != nil {

@@ -15,6 +15,7 @@ import (
 type g2AgentCommands interface {
 	Run(context.Context, agent.RunRequest) (agent.RunResult, error)
 	Live(id.AgentID) (live.Snapshot, bool)
+	SendMessage(context.Context, agent.SendMessageRequest) (agent.SendMessageResult, error)
 }
 
 func newG2ControlHandler(
@@ -73,6 +74,17 @@ func newG2ControlHandler(
 					request,
 					controlapi.AgentLiveResponse{Stream: stream},
 				)
+
+			case controlapi.TypeAgentMessage:
+				payload, err := decodeControlPayload[controlapi.AgentMessageRequest](request.Payload)
+				if err != nil {
+					return protocol.Envelope{}, err
+				}
+				result, err := agents.SendMessage(ctx, payload)
+				if err != nil {
+					return protocol.Envelope{}, err
+				}
+				return response(request, controlapi.AgentMessageResponse{Result: result})
 
 			default:
 				return base.Handle(ctx, request)

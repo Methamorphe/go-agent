@@ -55,7 +55,7 @@ func run(args []string) int {
 	client := control.NewClient(cfg.ControlAddress, cfg.MaxFrameBytes, id.NewGenerator())
 	command := global.Args()
 	if len(command) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: go-agentctl [global flags] <run|attach> ...")
+		fmt.Fprintln(os.Stderr, "usage: go-agentctl [global flags] <run|attach|workspace|message|process> ...")
 		return 2
 	}
 
@@ -67,6 +67,11 @@ func run(args []string) int {
 		}
 	case "attach":
 		if err := attachAgent(ctx, client, command[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 1
+		}
+	case "workspace", "message", "process":
+		if err := runG13ControlCommand(ctx, client, command); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			return 1
 		}

@@ -1,6 +1,8 @@
 package process
 
 import (
+	"strings"
+
 	"github.com/Methamorphe/go-agent/internal/id"
 	"github.com/Methamorphe/go-agent/internal/ledger"
 )
@@ -13,7 +15,14 @@ const (
 	EventSyscallRequested         ledger.EventType = "SyscallRequested"
 	EventSyscallCompleted         ledger.EventType = "SyscallCompleted"
 	EventSyscallFailed            ledger.EventType = "SyscallFailed"
+	EventUserMessageReceived      ledger.EventType = "UserMessageReceived"
 )
+
+type UserMessageReceivedPayload struct {
+	MessageID id.MessageID `json:"message_id"`
+	Text      string       `json:"text"`
+	Queue     string       `json:"queue"`
+}
 
 type CognitiveRoutingDecidedPayload struct {
 	DecisionID           string `json:"decision_id"`
@@ -83,7 +92,8 @@ func validateOperationEvent(state State, event ledger.Event) (bool, error) {
 			EventModelInvocationFailed,
 			EventSyscallRequested,
 			EventSyscallCompleted,
-			EventSyscallFailed:
+			EventSyscallFailed,
+			EventUserMessageReceived:
 			return true, impossible(event, "operation event requires RUNNING")
 		default:
 			return false, nil
@@ -91,6 +101,22 @@ func validateOperationEvent(state State, event ledger.Event) (bool, error) {
 	}
 
 	switch event.Type {
+	case EventUserMessageReceived:
+		payload, err := decodePayload[UserMessageReceivedPayload](event)
+		if err != nil {
+			return true, err
+		}
+		if payload.MessageID == "" || strings.TrimSpace(payload.Text) == "" {
+			return true, impossible(event, "interactive message payload is incomplete")
+		}
+		if len(payload.Text) > 64<<10 {
+			return true, impossible(event, "interactive message is too large")
+		}
+		if payload.Queue != "steer" && payload.Queue != "follow_up" {
+			return true, impossible(event, "interactive message queue is invalid")
+		}
+		return true, nil
+
 	case EventCognitiveRoutingDecided:
 		payload, err := decodePayload[CognitiveRoutingDecidedPayload](event)
 		if err != nil {
