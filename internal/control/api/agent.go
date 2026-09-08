@@ -7,13 +7,15 @@ import (
 )
 
 const (
-	TypeAgentRun  = "agent.run"
-	TypeAgentLive = "agent.live"
+	TypeAgentRun     = "agent.run"
+	TypeAgentLive    = "agent.live"
+	TypeAgentMessage = "agent.message"
 )
 
 const (
-	MessageAgentRun  = TypeAgentRun
-	MessageAgentLive = TypeAgentLive
+	MessageAgentRun     = TypeAgentRun
+	MessageAgentLive    = TypeAgentLive
+	MessageAgentMessage = TypeAgentMessage
 )
 
 type AgentRunRequest struct {
@@ -36,4 +38,10 @@ type AgentLiveRequest struct {
 
 type AgentLiveResponse struct {
 	Stream live.Snapshot `json:"stream"`
+}
+
+type AgentMessageRequest = agent.SendMessageRequest
+
+type AgentMessageResponse struct {
+	Result agent.SendMessageResult `json:"result"`
 }
