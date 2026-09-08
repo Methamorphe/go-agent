@@ -155,6 +155,7 @@ func initG13OperatorRepo(t *testing.T) string {
 	runG13Git(t, repo, "init")
 	runG13Git(t, repo, "config", "user.email", "g13@example.invalid")
 	runG13Git(t, repo, "config", "user.name", "G13 Test")
+	runG13Git(t, repo, "config", "core.autocrlf", "false")
 	if err := os.WriteFile(filepath.Join(repo, "value.txt"), []byte("base\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
