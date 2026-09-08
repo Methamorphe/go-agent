@@ -1,15 +1,25 @@
 APP_NAME := go-agent
 CMD := ./cmd/go-agent
+TUI_NAME := go-agent-tui
+TUI_CMD := ./cmd/go-agent-tui
 SOAK_PACKAGES := ./internal/mmu ./internal/storage/sqlite
 
 .PHONY: run
-run:
+run: tui
+
+.PHONY: tui
+tui:
+	go run $(TUI_CMD)
+
+.PHONY: daemon
+daemon:
 	go run $(CMD)
 
 .PHONY: build
 build:
 	mkdir -p bin
 	go build -o bin/$(APP_NAME) $(CMD)
+	go build -o bin/$(TUI_NAME) $(TUI_CMD)
 
 .PHONY: test
 test:
@@ -58,8 +68,11 @@ soak-24h:
 build-all:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/$(APP_NAME)-linux-amd64 $(CMD)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/$(TUI_NAME)-linux-amd64 $(TUI_CMD)
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o bin/$(APP_NAME)-darwin-arm64 $(CMD)
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o bin/$(TUI_NAME)-darwin-arm64 $(TUI_CMD)
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/$(APP_NAME)-windows-amd64.exe $(CMD)
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/$(TUI_NAME)-windows-amd64.exe $(TUI_CMD)
 
 .PHONY: clean
 clean:
