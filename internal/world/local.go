@@ -31,7 +31,17 @@ func NewLocalWorld(root string) (*LocalWorld, error) {
 }
 
 func (w *LocalWorld) Profile() Profile {
-	return Profile{Name: "local", SupportsStreaming: true, SupportsCancellation: true, SupportsProcessTreeKill: true}
+	return Profile{
+		Name:                    "local",
+		Type:                    TypeLocal,
+		EnforcementLevel:        EnforcementHostMediated,
+		Filesystem:              FilesystemGuarantees{WorldRelativeRoot: true},
+		Network:                 NetworkFullOutbound,
+		ProfileVersion:          2,
+		SupportsStreaming:       true,
+		SupportsCancellation:    true,
+		SupportsProcessTreeKill: true,
+	}
 }
 
 func (w *LocalWorld) Execute(ctx context.Context, action Action) (Result, error) {
@@ -65,7 +75,9 @@ func (w *LocalWorld) Execute(ctx context.Context, action Action) (Result, error)
 		if err != nil {
 			return Result{Status: ResultFailed, Error: err.Error()}, err
 		}
-		var params struct{ Content string `json:"content"` }
+		var params struct {
+			Content string `json:"content"`
+		}
 		if err := json.Unmarshal(action.Params, &params); err != nil {
 			return Result{Status: ResultFailed, Error: err.Error()}, err
 		}
