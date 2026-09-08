@@ -173,16 +173,17 @@ func (r *Runner) finalContinuation(ctx context.Context, session *interactiveSess
 }
 
 func (r *Runner) recordQueuedLocked(ctx context.Context, session *interactiveSession, state process.State, meta process.CommandMeta, includeFollowUp bool) (process.State, []string, error) {
-	recorder, ok := r.processes.(interactiveProcessRecorder)
-	if !ok {
-		return state, nil, errs.New(errs.CodeUnsupported, "agent.message", "process recorder does not support interactive messages")
-	}
 	messages := append([]queuedMessage(nil), session.steer...)
 	if includeFollowUp {
 		messages = append(messages, session.followUp...)
 	}
 	if len(messages) == 0 {
 		return state, nil, nil
+	}
+
+	recorder, ok := r.processes.(interactiveProcessRecorder)
+	if !ok {
+		return state, nil, errs.New(errs.CodeUnsupported, "agent.message", "process recorder does not support interactive messages")
 	}
 	userMeta := meta
 	userMeta.Actor = ledger.ActorRef{Kind: ledger.ActorUser, ID: "interactive-client"}
