@@ -26,7 +26,7 @@ func TestForkInspectorVisuallyComparesCandidatesAndWinner(t *testing.T) {
 		},
 	}}
 	output := model.render()
-	for _, want := range []string{"INSPECTOR · FORKS", "frk_winner", "frk_other", "SELECTED", "DISCARDED", "best eligible objective score"} {
+	for _, want := range []string{"INSPECTOR · FORKS", "frk_winner", "frk_other", "SELECTED", "DISCARDED", "winner has the best eligible"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("fork comparison missing %q:\n%s", want, output)
 		}
@@ -66,7 +66,7 @@ func TestRuntimeInspectorsExposeMMUSchedulerAndAuthorityWithoutHiddenReasoning(t
 		t.Fatalf("scheduler inspector incomplete:\n%s", output)
 	}
 	model.inspectorTab = inspectorAuthority
-	if output := model.render(); !strings.Contains(output, "ship safely") || !strings.Contains(output, "never grants runtime capability") {
+	if output := model.render(); !strings.Contains(output, "ship safely") || !strings.Contains(output, "UI approval never grants runtime") || !strings.Contains(output, "capability") {
 		t.Fatalf("authority inspector incomplete:\n%s", output)
 	}
 }
