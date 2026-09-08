@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Methamorphe/go-agent/internal/agentsyscall"
@@ -72,6 +73,9 @@ type Runner struct {
 	runtimeID       id.RuntimeInstanceID
 	live            *live.Bus
 	providerFactory ProviderFactory
+
+	sessionsMu sync.Mutex
+	sessions   map[id.AgentID]*interactiveSession
 }
 
 func New(logger *slog.Logger, processes ProcessAPI, objects *objectstore.Store, ids IDGenerator, runtimeID id.RuntimeInstanceID) *Runner {
@@ -90,6 +94,7 @@ func NewWithProviderFactory(logger *slog.Logger, processes ProcessAPI, objects *
 		runtimeID:       runtimeID,
 		live:            live.New(live.DefaultMaxStreams, live.DefaultStreamBytes),
 		providerFactory: factory,
+		sessions:        make(map[id.AgentID]*interactiveSession),
 	}
 }
 
@@ -145,6 +150,13 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (RunResult, error)
 		return RunResult{}, err
 	}
 
+	session, err := r.openInteractiveSession(request.AgentID)
+	if err != nil {
+		r.bestEffortYield(ctx, state, meta, "interactive_session_unavailable")
+		return RunResult{}, err
+	}
+	defer r.closeInteractiveSession(request.AgentID, session)
+
 	if err := r.live.Begin(request.AgentID, time.Now().UTC()); err != nil {
 		r.bestEffortYield(ctx, state, meta, "live_stream_unavailable")
 		return RunResult{}, err
@@ -174,6 +186,15 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (RunResult, error)
 	var finalPreview string
 
 	for step := 1; step <= request.MaxSteps; step++ {
+		state, steering, err := r.drainSteering(ctx, session, state, meta)
+		if err != nil {
+			r.bestEffortYield(ctx, state, meta, "interactive_message_recording_failed")
+			return RunResult{}, err
+		}
+		for _, text := range steering {
+			messages = append(messages, provider.Message{Role: provider.RoleUser, Parts: []provider.ContentPart{provider.TextPart(text)}})
+		}
+
 		if workingContextBytes(messages) > MaxWorkingContextBytes {
 			r.bestEffortYield(ctx, state, meta, "working_context_limit")
 			return RunResult{}, errs.New(errs.CodeResourceExhausted, "agent.run", "G2 working context limit reached; G4 Cognitive MMU is required for longer runs")
@@ -198,6 +219,22 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (RunResult, error)
 				r.bestEffortYield(ctx, state, meta, "empty_model_response")
 				return RunResult{}, errs.New(errs.CodeUnavailable, "agent.run", "model returned neither text nor tool calls")
 			}
+
+			var continuation []string
+			var hasContinuation bool
+			state, continuation, hasContinuation, err = r.finalContinuation(ctx, session, state, meta)
+			if err != nil {
+				r.bestEffortYield(ctx, state, meta, "interactive_message_recording_failed")
+				return RunResult{}, err
+			}
+			if hasContinuation {
+				messages = append(messages, provider.Message{Role: provider.RoleAssistant, Parts: []provider.ContentPart{provider.TextPart(outcome.TextPreview)}})
+				for _, text := range continuation {
+					messages = append(messages, provider.Message{Role: provider.RoleUser, Parts: []provider.ContentPart{provider.TextPart(text)}})
+				}
+				continue
+			}
+
 			expected = state.Version
 			completed, err := r.processes.Complete(ctx, request.AgentID, &expected, outcome.ResponseRef, meta)
 			if err != nil {
@@ -344,5 +381,6 @@ Use the provided syscalls when you need evidence from the workspace.
 - observe reads files or lists directories.
 - execute runs an executable with argv; do not assume shell expansion.
 - checkpoint creates a durable process checkpoint marker.
+Interactive steer messages refine the current work at the next safe boundary. Queued follow-ups are handled after the current answer without stopping sibling agents.
 Do not claim that a file, command, test, or repository fact was inspected unless a syscall returned evidence for it.
 When the task is complete, return the final answer as normal assistant text without a tool call.`
