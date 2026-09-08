@@ -30,8 +30,9 @@ G10 COMPLETE  Context Faults + Cognitive MMU v2
 G11 COMPLETE  Adaptive Teams + Agent Negotiation
 G12 COMPLETE  Verified Continual Improvement
 G13 COMPLETE  Production TUI / Interactive Agent Workspace
-G14 READY     Distributed Worlds / Workers
-G15 PLANNED   Production Observability / Time-Travel Debugger
+G14 READY     Wails v3 Desktop GUI / Agent Workspace
+G15 PLANNED   Distributed Worlds / Workers
+G16 PLANNED   Production Observability / Time-Travel Debugger
 ```
 
 See:
@@ -53,6 +54,7 @@ See:
 - `G12_EXIT_REVIEW.md`;
 - `G13_EXIT_REVIEW.md`;
 - `PRODUCTION_TUI_WORKSPACE.md`;
+- `G14_WAILS_DESKTOP_GUI.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
 - `ARCHITECTURE_DECISIONS.md`;
@@ -316,7 +318,104 @@ See `G13_EXIT_REVIEW.md` and `PRODUCTION_TUI_WORKSPACE.md`.
 
 ---
 
-# G14 — Distributed Worlds / Workers 🟢 READY
+# G14 — Wails v3 Desktop GUI / Agent Workspace 🟢 READY
+
+## Goal
+
+Ship a first-class desktop Agent workspace on **Wails v3**, intentionally adopting the v3 generation even while it remains beta, with fluid interaction, modern UI/UX, tasteful motion, fast startup, low idle overhead and a small desktop footprint.
+
+The GUI is a replaceable client of the same durable daemon as the TUI. TUI and GUI must be able to attach to the same durable sessions without duplicating kernel semantics or canonical state.
+
+## Product direction
+
+The interaction model takes inspiration from leading agentic workspaces such as Hermes and Goose while keeping an original product identity:
+
+- central conversation/activity stream;
+- durable sessions and multi-Agent navigation;
+- contextual right-side inspector for files, plans, diffs, artifacts, forks and runtime state;
+- visible but compact live tool activity;
+- editable queued instructions/follow-ups;
+- command palette and keyboard-first power workflows;
+- mouse-friendly daily use;
+- inline plan/diff review and targeted feedback;
+- excellent streaming and long-history virtualization;
+- coherent dark/light design system;
+- subtle, interruptible animations that communicate state rather than decorate latency.
+
+## Wails v3 decision
+
+Wails v3 is the required framework. There is no Wails v2 fallback plan.
+
+Its beta status adds engineering safeguards:
+
+- exact Wails v3 version pinning;
+- reproducible toolchain;
+- documented upgrade procedure;
+- smoke tests for bindings/events/windows;
+- adapter boundaries around Wails-specific services;
+- macOS/Windows/Linux CI builds;
+- rollback to the previous pinned v3 beta on upstream regression.
+
+## Candidate deliverables
+
+- dedicated Wails v3 desktop application;
+- adaptive three-pane Agent workspace with collapsible/resizable navigation and inspector surfaces;
+- ASK / PLAN / ACT / REVIEW / OBSERVE parity with the TUI;
+- modern conversation/activity stream with coalesced model streaming;
+- durable session and multi-Agent cockpit;
+- editable queued follow-ups and steering;
+- command palette, fuzzy navigation and customizable shortcuts;
+- plan-step review and file/hunk diff review;
+- transaction verify/prepare/commit/rollback/reconcile surfaces;
+- cognitive-fork comparison and winner visualization;
+- Context/MMU, epistemic memory, scheduler/budget, authority, team and verified-improvement inspectors;
+- internal design system with typography, spacing, surfaces, semantic colors, focus states, motion tokens and reusable interaction primitives;
+- dark/light/system themes plus reduced-motion support;
+- native dialogs, window-state persistence and useful desktop integrations through supported Wails v3 APIs;
+- virtualized long history, lazy inspectors and bounded frontend caches/event queues;
+- frontend/runtime client abstraction that keeps generated Wails bindings at the edge.
+
+## Performance/UX gates
+
+Performance is a product feature, not a post-launch optimization.
+
+Engineering targets include:
+
+```text
+warm interactive window          target < 1 s on representative modern dev hardware
+ordinary local interaction       target < 16 ms interaction-to-paint where WebView/OS does not dominate
+streaming                         never blocks input or scrolling
+history                           100k-message synthetic history remains virtualized/bounded
+frontend memory                   plateaus under long-session stress
+idle CPU                          effectively negligible
+binary/RAM/startup                measured and regression-tracked
+```
+
+Animations should generally remain in the ~100–220 ms range for ordinary state transitions, remain interruptible/GPU-friendly and honor the operating system's reduced-motion preference.
+
+## Required invariants
+
+- canonical Agent state remains in the daemon;
+- GUI detach/crash does not cancel durable Agent work;
+- all meaningful mutations retain headless/control-protocol parity;
+- GUI cannot mint authority or weaken effect policy;
+- uncertain external outcomes remain uncertain until reconciliation;
+- frontend caches and queues are bounded;
+- long history is virtualized;
+- large payloads are streamed/referenced rather than fully buffered;
+- hidden model reasoning is never exposed;
+- Wails-specific failures cannot corrupt durable runtime state;
+- TUI and GUI observe consistent canonical state for the same durable session.
+
+## Initial killer demonstration
+
+Start a durable coding Agent in the Wails v3 GUI, watch multiple child Agents and live tool actions, inspect/review a generated diff, quit the GUI while the Agent continues, reopen and reattach to the same process, inspect transaction/fork state and finish the workflow without loss of canonical state.
+
+**Detailed specification:** `G14_WAILS_DESKTOP_GUI.md`.
+
+---
+
+# G15 — Distributed Worlds / Workers
 
 ## Goal
 
@@ -354,11 +453,11 @@ Run a durable Agent with work split between a local World and a remote worker, t
 
 ---
 
-# G15 — Production Observability / Time-Travel Debugger
+# G16 — Production Observability / Time-Travel Debugger
 
 ## Goal
 
-Make complex Agent behavior understandable and replayable beyond the everyday G13 workspace.
+Make complex Agent behavior understandable and replayable beyond the everyday G13/G14 workspaces.
 
 ## Planned deliverables
 
@@ -373,7 +472,7 @@ Make complex Agent behavior understandable and replayable beyond the everyday G1
 - historical replay/fork;
 - OpenTelemetry export.
 
-G15 builds forensic/debugging workflows on top of the product interaction primitives established by G13 rather than moving canonical state into an observability UI.
+G16 builds forensic/debugging workflows on top of the product interaction primitives established by G13 and G14 rather than moving canonical state into an observability UI.
 
 ---
 
@@ -403,9 +502,9 @@ A credible coding-agent experience emerged around G5 with a durable daemon, atta
 
 G6 added model/resource scheduling. G7 added isolated workspace/OCI execution and durable transactions. G8 added safe alternative futures and objective winner promotion. G9 added evidence-aware memory and localized truth maintenance. G10 added typed cognitive paging. G11 added bounded adaptive teams/negotiation. G12 added controlled verified self-improvement.
 
-**G13 is the completed productization generation:** it exposes these primitives through a production interactive terminal workspace while preserving daemon durability and headless parity.
+**G13 completed terminal productization:** the runtime is now exposed through a production TUI while preserving daemon durability and headless parity.
 
-**G14 is now the immediate implementation target:** distribute Worlds/workers without weakening identity, authority, boundedness or reconciliation semantics. G15 then adds deep production observability/time-travel debugging.
+**G14 is now the immediate implementation target:** deliver the lightweight, fluid, modern Wails v3 desktop Agent workspace on top of the same daemon/control semantics. G15 then distributes Worlds/workers, and G16 adds deep production observability/time-travel debugging.
 
 ---
 
@@ -427,7 +526,8 @@ Use deterministic fake providers and fake Worlds for:
 - Truth Maintenance propagation;
 - scheduler fairness;
 - TUI projection/virtualization/reconnect behavior;
-- distributed-worker failure/reconciliation in G14.
+- GUI projection/virtualization/reconnect/crash behavior in G14;
+- distributed-worker failure/reconciliation in G15.
 
 Real-model tests evaluate model/harness quality separately from kernel correctness.
 
@@ -437,6 +537,6 @@ Long-duration validation uses tagged provider-free soak scenarios and explicit b
 
 # Immediate next step
 
-**G14 — Distributed Worlds / Workers is READY.**
+**G14 — Wails v3 Desktop GUI / Agent Workspace is READY.**
 
-The next implementation pass should preserve all G0–G13 invariants while introducing remote worker identity/profile, transport, leases/heartbeats, streamed object movement, scheduler locality and explicit failure/reconciliation semantics.
+The next implementation pass should preserve all G0–G13 invariants while building a first-class Wails v3 desktop client with modern UX, smooth bounded streaming, virtualized history, tasteful motion, TUI/headless parity and measured startup/RAM/size/responsiveness gates.
