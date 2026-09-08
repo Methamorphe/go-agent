@@ -11,7 +11,7 @@ import (
 
 func TestForkInspectorVisuallyComparesCandidatesAndWinner(t *testing.T) {
 	model := NewModel(context.Background(), &fakeRuntimeClient{}, DefaultConfig())
-	model.width, model.height = 150, 36
+	model.width, model.height = 220, 36
 	model.loading = false
 	model.rootID, model.focusID = "agt_root", "agt_root"
 	model.inspectorTab = inspectorForks
@@ -50,7 +50,7 @@ func TestUnicodeAndResizeRemainRenderableAcrossTerminalWidths(t *testing.T) {
 
 func TestRuntimeInspectorsExposeMMUSchedulerAndAuthorityWithoutHiddenReasoning(t *testing.T) {
 	model := NewModel(context.Background(), &fakeRuntimeClient{}, DefaultConfig())
-	model.width, model.height = 150, 32
+	model.width, model.height = 220, 32
 	model.loading = false
 	model.rootID, model.focusID = "agt_root", "agt_root"
 	model.inspector.Context = workspace.ContextRuntimeSummary{PageCount: 17, EstimatedTokens: 4200, ActiveLeaseCount: 2, UnresolvedFaults: 1, LatestManifestRef: "object://manifest"}
