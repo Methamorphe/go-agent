@@ -217,6 +217,7 @@ func initG8GitRepo(t *testing.T, files map[string]string) string {
 	if _, err := exec.LookPath("git"); err != nil { t.Skip("git is unavailable") }
 	repo := t.TempDir()
 	runG8Git(t, repo, "init")
+	runG8Git(t, repo, "config", "core.autocrlf", "false")
 	runG8Git(t, repo, "config", "user.name", "G8 Test")
 	runG8Git(t, repo, "config", "user.email", "g8@example.invalid")
 	for name, body := range files {
