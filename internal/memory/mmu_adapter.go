@@ -15,15 +15,15 @@ type MMUPageWriter interface {
 }
 
 type mmuBeliefPayload struct {
-	BeliefID         id.BeliefID            `json:"belief_id"`
-	Proposition      string                 `json:"proposition"`
-	Status           BeliefStatus           `json:"status"`
-	Confidence       ConfidenceProfile      `json:"confidence"`
-	Provenance       []ProvenanceClass      `json:"provenance"`
-	Evidence         []EvidenceLink         `json:"evidence_refs"`
-	Contradictions   []ContradictionSummary `json:"contradictions,omitempty"`
-	NeedsEvidence    bool                   `json:"needs_evidence"`
-	AuthoritySource  string                 `json:"authority_source"`
+	BeliefID        id.BeliefID            `json:"belief_id"`
+	Proposition     string                 `json:"proposition"`
+	Status          BeliefStatus           `json:"status"`
+	Confidence      ConfidenceProfile      `json:"confidence"`
+	Provenance      []ProvenanceClass      `json:"provenance"`
+	Evidence        []EvidenceLink         `json:"evidence_refs"`
+	Contradictions  []ContradictionSummary `json:"contradictions,omitempty"`
+	NeedsEvidence   bool                   `json:"needs_evidence"`
+	AuthoritySource string                 `json:"authority_source"`
 }
 
 func ToMMUPageInput(agentID id.AgentID, item RetrievedBelief) (mmu.PageInput, error) {
@@ -31,14 +31,14 @@ func ToMMUPageInput(agentID id.AgentID, item RetrievedBelief) (mmu.PageInput, er
 		return mmu.PageInput{}, errs.New(errs.CodeInvalidArgument, "memory.mmu.page", "agent and belief ids are required")
 	}
 	payload := mmuBeliefPayload{
-		BeliefID: item.Belief.ID,
-		Proposition: item.Belief.Proposition,
-		Status: item.Belief.Status,
-		Confidence: item.Belief.Confidence,
-		Provenance: append([]ProvenanceClass(nil), item.Provenance...),
-		Evidence: append([]EvidenceLink(nil), item.Evidence...),
-		Contradictions: append([]ContradictionSummary(nil), item.Contradictions...),
-		NeedsEvidence: item.NeedsEvidence,
+		BeliefID:        item.Belief.ID,
+		Proposition:     item.Belief.Proposition,
+		Status:          item.Belief.Status,
+		Confidence:      item.Belief.Confidence,
+		Provenance:      append([]ProvenanceClass(nil), item.Provenance...),
+		Evidence:        append([]EvidenceLink(nil), item.Evidence...),
+		Contradictions:  append([]ContradictionSummary(nil), item.Contradictions...),
+		NeedsEvidence:   item.NeedsEvidence,
 		AuthoritySource: item.AuthoritySource,
 	}
 	body, err := json.Marshal(payload)
@@ -46,11 +46,11 @@ func ToMMUPageInput(agentID id.AgentID, item RetrievedBelief) (mmu.PageInput, er
 		return mmu.PageInput{}, errs.Wrap(errs.CodeInternal, "memory.mmu.page", "encode belief payload", err)
 	}
 	return mmu.PageInput{
-		AgentID: agentID,
-		Type: mmu.PageRecallResult,
-		Scope: mmuScope(item.Belief.Scope.Kind),
-		SourceRef: "belief:" + item.Belief.ID.String(),
-		Content: string(body),
+		AgentID:    agentID,
+		Type:       mmu.PageRecallResult,
+		Scope:      mmuScope(item.Belief.Scope.Kind),
+		SourceRef:  "belief://" + item.Belief.ID.String(),
+		Content:    string(body),
 		Importance: beliefImportance(item.Belief.Status),
 		Confidence: beliefNumericConfidence(item.Belief),
 	}, nil
