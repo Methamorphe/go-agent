@@ -53,12 +53,7 @@ export class WorkspaceController {
   async attach(agentID?: string, mode: Mode = this.store.value.mode, announce = true): Promise<void> {
     this.store.setBusy("attach", true);
     try {
-      const snapshot = await this.runtime.attach({
-        agent_id: agentID || undefined,
-        mode,
-        history_limit: DEFAULT_HISTORY_PAGE,
-        tree_limit: 512,
-      });
+      const snapshot = await this.runtime.attach({ agent_id: agentID || undefined, mode, history_limit: DEFAULT_HISTORY_PAGE, tree_limit: 512 });
       this.store.applySnapshot(snapshot);
       this.consecutiveErrors = 0;
       if (announce) this.notice("success", `Focused ${shortID(snapshot.focused_agent_id)}`);
@@ -120,8 +115,7 @@ export class WorkspaceController {
     if (!agentID) return;
     this.liveBusy = true;
     try {
-      const live = await this.runtime.live(agentID);
-      this.store.setLive(live);
+      this.store.setLive(await this.runtime.live(agentID));
     } catch {
       this.store.setLive(null);
     } finally {
@@ -211,16 +205,52 @@ export class WorkspaceController {
     }
   }
 
-  async transaction(transactionID: string, operation: "verify" | "prepare" | "commit" | "rollback" | "reconcile"): Promise<void> {
-    if (!transactionID) return;
+  async transaction(transactionID: string, operation: "prepare" | "commit" | "rollback" | "reconcile"): Promise<boolean> {
+    if (!transactionID) return false;
     const key = `tx:${transactionID}`;
     this.store.setBusy(key, true);
     try {
       await this.runtime.operateTransaction({ transaction_id: transactionID, operation });
       this.notice("success", `Transaction ${operation} requested.`);
       await this.refresh(true);
+      return true;
     } catch (error) {
       this.notice("error", errorMessage(error));
+      return false;
+    } finally {
+      this.store.setBusy(key, false);
+    }
+  }
+
+  async verifyTransaction(transactionID: string, command: string[], timeoutMS: number): Promise<boolean> {
+    if (!transactionID || command.length === 0 || !command[0]?.trim()) return false;
+    const key = `tx:${transactionID}`;
+    this.store.setBusy(key, true);
+    try {
+      await this.runtime.operateTransaction({ transaction_id: transactionID, operation: "verify", command, timeout_ms: timeoutMS });
+      this.notice("success", "Transaction verification completed.");
+      await this.refresh(true);
+      return true;
+    } catch (error) {
+      this.notice("error", errorMessage(error));
+      return false;
+    } finally {
+      this.store.setBusy(key, false);
+    }
+  }
+
+  async resolveEffect(transactionID: string, effectID: string, certainty: "known_applied" | "known_absent" | "unknown", evidence: string): Promise<boolean> {
+    if (!transactionID || !effectID.trim()) return false;
+    const key = `tx:${transactionID}`;
+    this.store.setBusy(key, true);
+    try {
+      await this.runtime.operateTransaction({ transaction_id: transactionID, operation: "resolve_effect", effect_id: effectID.trim(), certainty, evidence: evidence.trim() });
+      this.notice("success", "Effect resolution recorded. Reconciliation still determines the final transaction state.");
+      await this.refresh(true);
+      return true;
+    } catch (error) {
+      this.notice("error", errorMessage(error));
+      return false;
     } finally {
       this.store.setBusy(key, false);
     }
