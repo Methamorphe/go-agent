@@ -94,11 +94,6 @@ func run(args []string) int {
 		return 0
 	}
 
-	if err := ensureRuntime(ctx, cfg); err != nil {
-		fmt.Fprintln(os.Stderr, "runtime startup error:", err)
-		return 1
-	}
-
 	workspaceMode := workspace.Mode(strings.ToUpper(strings.TrimSpace(mode)))
 	if !workspaceMode.Valid() {
 		fmt.Fprintln(os.Stderr, "--mode must be ASK, PLAN, ACT, REVIEW, or OBSERVE")
@@ -128,6 +123,11 @@ func run(args []string) int {
 			fmt.Fprintln(os.Stderr, "--theme must be dark or light")
 			return 2
 		}
+	}
+
+	if err := ensureRuntime(ctx, cfg); err != nil {
+		fmt.Fprintln(os.Stderr, "runtime startup error:", err)
+		return 1
 	}
 
 	controlClient := control.NewClient(cfg.ControlAddress, cfg.MaxFrameBytes, id.NewGenerator())
