@@ -102,6 +102,27 @@ func (s *MemoryStore) UpdateEffect(_ context.Context, effectID id.EffectRecordID
 	return nil
 }
 
+func (s *MemoryStore) ListEffects(_ context.Context, transactionID id.TransactionID) ([]EffectRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.transactions[transactionID]; !ok {
+		return nil, ErrNotFound
+	}
+	result := make([]EffectRecord, 0)
+	for _, effect := range s.effects {
+		if effect.TransactionID == transactionID {
+			result = append(result, effect)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].ID.String() < result[j].ID.String()
+		}
+		return result[i].CreatedAt.Before(result[j].CreatedAt)
+	})
+	return result, nil
+}
+
 func (s *MemoryStore) CreateVerification(_ context.Context, verification Verification, eventType string, eventPayload json.RawMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
