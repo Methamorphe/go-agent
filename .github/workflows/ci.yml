@@ -45,13 +45,15 @@ jobs:
           test "$(go env GOVERSION)" = "go${GO_VERSION}"
           test "$(node --version)" = "v${NODE_VERSION}"
           test "$(npm --version)" = "${NPM_VERSION}"
-          go run github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_V3_VERSION} version
 
       - name: Install Wails Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev xvfb dbus-x11
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev xvfb dbus-x11
+
+      - name: Verify pinned Wails v3 CLI
+        run: go run github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_V3_VERSION }} version
 
       - run: go mod download
 
@@ -138,7 +140,7 @@ jobs:
       - name: Install Wails Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 
       - run: go mod download
 
