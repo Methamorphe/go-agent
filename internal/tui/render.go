@@ -91,7 +91,7 @@ func (m Model) render() string {
 		centerWidth := max(32, width-leftWidth-rightWidth-4)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
 			m.renderAgents(styles, leftWidth, bodyHeight),
-			m.renderConversation(styles, centerWidth, bodyHeight),
+			m.renderPrimary(styles, centerWidth, bodyHeight),
 			m.renderInspector(styles, rightWidth, bodyHeight),
 		)
 	case width >= mediumLayoutWidth:
@@ -99,10 +99,10 @@ func (m Model) render() string {
 		centerWidth := max(40, width-leftWidth-2)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
 			m.renderAgents(styles, leftWidth, bodyHeight),
-			m.renderConversation(styles, centerWidth, bodyHeight),
+			m.renderPrimary(styles, centerWidth, bodyHeight),
 		)
 	default:
-		body = m.renderConversation(styles, width, bodyHeight)
+		body = m.renderPrimary(styles, width, bodyHeight)
 	}
 
 	composer := m.renderComposer(styles, width)
@@ -113,6 +113,20 @@ func (m Model) render() string {
 		return m.renderOverlay(styles, page, width, height)
 	}
 	return page
+}
+
+func (m Model) renderPrimary(styles renderStyles, width, height int) string {
+	if m.mode == workspace.ModePlan {
+		if plan, ok := m.latestPlan(); ok {
+			return m.renderPlanReview(styles, width, height, plan)
+		}
+	}
+	if m.mode == workspace.ModeReview {
+		if diff, ok := m.latestDiff(); ok {
+			return m.renderDiffReview(styles, width, height, diff)
+		}
+	}
+	return m.renderConversation(styles, width, height)
 }
 
 func (m Model) renderHeader(styles renderStyles, width int) string {
@@ -150,6 +164,9 @@ func (m Model) renderAgents(styles renderStyles, width, height int) string {
 			line = styles.danger.Render(line)
 		}
 		lines = append(lines, line)
+		if item.WaitReason != "" && len(lines) < height-2 {
+			lines = append(lines, styles.muted.Render("   ↳ "+oneLine(item.WaitReason+" "+item.WaitRef, innerWidth-4)))
+		}
 	}
 	if len(m.tree) > end {
 		lines = append(lines, styles.muted.Render(fmt.Sprintf("… %d more", len(m.tree)-end)))
@@ -196,6 +213,81 @@ func (m Model) renderConversation(styles renderStyles, width, height int) string
 	return styles.paneFocus.Width(width).Height(height).Render(joinAndClip(lines, height-2))
 }
 
+func (m Model) renderPlanReview(styles renderStyles, width, height int, plan planReview) string {
+	innerWidth := max(16, width-4)
+	lines := []string{
+		styles.title.Render("PLAN REVIEW"),
+		styles.block.Render(oneLine(plan.Title, innerWidth)),
+		styles.muted.Render("ref: " + oneLine(reviewReference("plan", plan.BlockID, plan.ObjectRef), innerWidth-5)),
+		"",
+	}
+	for index, step := range plan.Steps {
+		marker := "○"
+		state := strings.ToLower(step.State)
+		if strings.Contains(state, "done") || strings.Contains(state, "complete") || strings.Contains(state, "approved") {
+			marker = "✓"
+		} else if strings.Contains(state, "run") || strings.Contains(state, "active") || strings.Contains(state, "progress") {
+			marker = "▶"
+		} else if strings.Contains(state, "fail") || strings.Contains(state, "block") {
+			marker = "!"
+		}
+		line := fmt.Sprintf("%s %s. %s [%s]", marker, step.ID, step.Title, step.State)
+		if index == m.reviewIndex {
+			line = styles.selected.Width(innerWidth).Render(oneLine(line, innerWidth))
+		} else {
+			line = oneLine(line, innerWidth)
+		}
+		lines = append(lines, line)
+		if step.Detail != "" && len(lines) < height-4 {
+			lines = append(lines, styles.muted.Render("   "+oneLine(step.Detail, innerWidth-3)))
+		}
+	}
+	lines = append(lines, "", styles.muted.Render("J/K select · Ctrl+P: plan approve|comment|rewrite <text> · 3 ACT"))
+	return styles.paneFocus.Width(width).Height(height).Render(joinAndClip(lines, height-2))
+}
+
+func (m Model) renderDiffReview(styles renderStyles, width, height int, diff diffReview) string {
+	innerWidth := max(16, width-4)
+	lines := []string{styles.title.Render("DIFF REVIEW")}
+	if diff.BaseRef != "" || diff.SourceRef != "" || diff.TargetRef != "" {
+		lines = append(lines, styles.muted.Render(oneLine(fmt.Sprintf("base:%s source:%s target:%s", shortID(diff.BaseRef), shortID(diff.SourceRef), shortID(diff.TargetRef)), innerWidth)))
+	}
+	lines = append(lines, styles.muted.Render("ref: "+oneLine(reviewReference("diff", diff.BlockID, diff.ObjectRef), innerWidth-5)), "")
+	for index, file := range diff.Files {
+		line := fmt.Sprintf("%s %s  +%d -%d", strings.ToUpper(file.Status), file.Path, file.Additions, file.Deletions)
+		if index == m.reviewIndex {
+			line = styles.selected.Width(innerWidth).Render(oneLine(line, innerWidth))
+		} else {
+			line = oneLine(line, innerWidth)
+		}
+		lines = append(lines, line)
+		if index != m.reviewIndex {
+			continue
+		}
+		for _, hunk := range file.Hunks {
+			if hunk.Header != "" {
+				lines = append(lines, styles.muted.Render("  "+oneLine(hunk.Header, innerWidth-2)))
+			}
+			for _, row := range strings.Split(hunk.Body, "\n") {
+				if len(lines) >= height-4 {
+					break
+				}
+				formatted := oneLine(row, innerWidth-2)
+				if strings.HasPrefix(row, "+") {
+					formatted = styles.warning.Render(formatted)
+				} else if strings.HasPrefix(row, "-") {
+					formatted = styles.danger.Render(formatted)
+				} else {
+					formatted = styles.block.Render(formatted)
+				}
+				lines = append(lines, "  "+formatted)
+			}
+		}
+	}
+	lines = append(lines, "", styles.muted.Render("J/K select file · Ctrl+P: review comment <text> · transactions inspector for commit state"))
+	return styles.paneFocus.Width(width).Height(height).Render(joinAndClip(lines, height-2))
+}
+
 func (m Model) visibleBlocks(lineBudget int) []workspace.Block {
 	if lineBudget <= 0 || len(m.blocks) == 0 {
 		return nil
@@ -208,7 +300,7 @@ func (m Model) visibleBlocks(lineBudget int) []workspace.Block {
 }
 
 func (m Model) renderInspector(styles renderStyles, width, height int) string {
-	tabs := []string{"runtime", "transactions", "forks", "context", "teams", "improvements"}
+	tabs := []string{"runtime", "transactions", "forks", "context", "scheduler", "authority", "teams", "improvements"}
 	active := int(m.inspectorTab) % len(tabs)
 	lines := []string{styles.title.Render("INSPECTOR · " + strings.ToUpper(tabs[active]))}
 
@@ -253,10 +345,26 @@ func (m Model) renderInspector(styles renderStyles, width, height int) string {
 				if branch.ForkID == fork.WinnerForkID {
 					marker = "  ★ "
 				}
-				lines = append(lines, fmt.Sprintf("%s %s %s · %dt", marker, shortID(branch.ForkID.String()), branch.State, branch.SpentTokens))
+				lines = append(lines, fmt.Sprintf("%s %s %s · $%.4f · %dt", marker, shortID(branch.ForkID.String()), branch.State, float64(branch.SpentMoneyMicros)/1_000_000, branch.SpentTokens))
+				if branch.Evaluation != "" {
+					lines = append(lines, styles.muted.Render("    eval "+oneLine(branch.Evaluation, width-12)))
+				}
+			}
+			if fork.SelectionReason != "" {
+				lines = append(lines, styles.muted.Render("  "+oneLine(fork.SelectionReason, width-8)))
 			}
 		}
 	case 3:
+		ctx := m.inspector.Context
+		lines = append(lines,
+			fmt.Sprintf("pages       %d", ctx.PageCount),
+			fmt.Sprintf("tokens est. %d", ctx.EstimatedTokens),
+			fmt.Sprintf("leases      %d", ctx.ActiveLeaseCount),
+			fmt.Sprintf("faults open %d", ctx.UnresolvedFaults),
+		)
+		if ctx.LatestManifestRef != "" {
+			lines = append(lines, styles.muted.Render("manifest "+oneLine(ctx.LatestManifestRef, width-11)))
+		}
 		if len(m.inspector.ContextFaults) == 0 {
 			lines = append(lines, styles.muted.Render("No recent Context Faults"))
 		}
@@ -271,6 +379,35 @@ func (m Model) renderInspector(styles renderStyles, width, height int) string {
 			}
 		}
 	case 4:
+		s := m.inspector.Scheduler
+		lines = append(lines,
+			fmt.Sprintf("budget $    %.4f / %.4f", float64(s.SpentMoneyMicros+s.ReservedMoneyMicros)/1_000_000, float64(s.LimitMoneyMicros)/1_000_000),
+			fmt.Sprintf("tokens      %d +%d / %d", s.SpentTokens, s.ReservedTokens, s.LimitTokens),
+		)
+		if s.LastDecisionID == "" {
+			lines = append(lines, styles.muted.Render("No durable routing decision yet"))
+		} else {
+			lines = append(lines,
+				"decision    "+shortID(s.LastDecisionID),
+				"provider    "+oneLine(s.LastProvider, width-12),
+				"model       "+oneLine(s.LastModel, width-12),
+				fmt.Sprintf("profile     v%d", s.LastProfileVersion),
+				fmt.Sprintf("estimate    $%.4f · %dt", float64(s.LastEstimatedMoney)/1_000_000, s.LastEstimatedTokens),
+			)
+		}
+	case 5:
+		a := m.inspector.Authority
+		lines = append(lines,
+			"intent      "+shortID(a.IntentID.String()),
+			fmt.Sprintf("schema      v%d", a.IntentVersion),
+			"goal        "+oneLine(a.Goal, width-12),
+			styles.muted.Render(oneLine(a.CapabilityProjection, width-4)),
+		)
+		if a.LastSecurityEvent != "" {
+			lines = append(lines, "security    "+oneLine(a.LastSecurityEvent, width-12))
+		}
+		lines = append(lines, styles.warning.Render("UI approval never grants runtime capability"))
+	case 6:
 		if len(m.inspector.Teams) == 0 {
 			lines = append(lines, styles.muted.Render("No adaptive teams"))
 		}
@@ -282,7 +419,7 @@ func (m Model) renderInspector(styles renderStyles, width, height int) string {
 			lines = append(lines, line)
 			lines = append(lines, styles.muted.Render("  "+oneLine(team.Objective, width-8)))
 		}
-	case 5:
+	case 7:
 		if len(m.inspector.Improvements) == 0 {
 			lines = append(lines, styles.muted.Render("No improvement artifacts"))
 		}
@@ -349,8 +486,11 @@ func (m Model) renderOverlay(styles renderStyles, page string, width, height int
 			"search <query>           durable projected history",
 			"steer <message>          active-work guidance",
 			"follow <message>         queued continuation",
-			"plan <feedback>          plan-review intent",
-			"review <comment>         diff/review feedback",
+			"plan <feedback>          plan surface + referenced intent",
+			"review <comment>         diff surface + referenced feedback",
+			"transactions / forks     inspect G7/G8 state",
+			"context / scheduler      inspect MMU and G6 routing",
+			"authority                inspect intent/security boundary",
 			"theme dark|light         client-local presentation",
 			"detach                   leave runtime work running",
 			"",
@@ -369,7 +509,7 @@ func (m Model) renderOverlay(styles renderStyles, page string, width, height int
 			"Alt+Enter      queue follow-up",
 			"Ctrl+P         command palette",
 			"/              history search",
-			"↑ ↓ / j k      select and attach Agent",
+			"↑ ↓ / j k      select Agent; in PLAN/REVIEW select step/file",
 			"PgUp / wheel   load/scroll history",
 			"[ / ]          switch inspector",
 			"1..5           ASK / PLAN / ACT / REVIEW / OBSERVE",
