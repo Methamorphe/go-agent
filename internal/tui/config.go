@@ -12,6 +12,9 @@ const (
 	DefaultInspectorEvery  = 4
 	DefaultCacheBlocks     = 512
 	MaximumCacheBlocks     = 2048
+	DefaultFPS             = 30
+	MinimumFPS             = 10
+	MaximumFPS             = 60
 )
 
 type ThemeName string
@@ -22,18 +25,18 @@ const (
 )
 
 type Theme struct {
-	Name       ThemeName
-	Background string
-	Surface    string
-	SurfaceAlt string
-	Text       string
-	Muted      string
-	Accent     string
-	Success    string
-	Warning    string
-	Danger     string
-	Border     string
-	Focus      string
+	Name       ThemeName `json:"name"`
+	Background string    `json:"background"`
+	Surface    string    `json:"surface"`
+	SurfaceAlt string    `json:"surface_alt"`
+	Text       string    `json:"text"`
+	Muted      string    `json:"muted"`
+	Accent     string    `json:"accent"`
+	Success    string    `json:"success"`
+	Warning    string    `json:"warning"`
+	Danger     string    `json:"danger"`
+	Border     string    `json:"border"`
+	Focus      string    `json:"focus"`
 }
 
 func DarkTheme() Theme {
@@ -55,25 +58,31 @@ func LightTheme() Theme {
 }
 
 type Config struct {
-	AgentID          id.AgentID
-	Mode             workspace.Mode
-	Theme            Theme
-	RefreshInterval  time.Duration
-	InspectorEvery   int
-	HistoryPageSize  int
-	TreeLimit        int
-	MaxCachedBlocks  int
+	AgentID         id.AgentID
+	Mode            workspace.Mode
+	Theme           Theme
+	RefreshInterval time.Duration
+	InspectorEvery  int
+	HistoryPageSize int
+	TreeLimit       int
+	MaxCachedBlocks int
+	FPS             int
+	Keymap          map[string]string
+	CommandAliases  map[string]string
 }
 
 func DefaultConfig() Config {
 	return Config{
-		Mode: workspace.ModeAct,
-		Theme: DarkTheme(),
+		Mode:            workspace.ModeAct,
+		Theme:           DarkTheme(),
 		RefreshInterval: DefaultRefreshInterval,
-		InspectorEvery: DefaultInspectorEvery,
+		InspectorEvery:  DefaultInspectorEvery,
 		HistoryPageSize: workspace.DefaultPageSize,
-		TreeLimit: workspace.DefaultTreeLimit,
+		TreeLimit:       workspace.DefaultTreeLimit,
 		MaxCachedBlocks: DefaultCacheBlocks,
+		FPS:             DefaultFPS,
+		Keymap:          map[string]string{},
+		CommandAliases:  map[string]string{},
 	}
 }
 
@@ -101,6 +110,15 @@ func (c Config) normalized() Config {
 	}
 	if c.MaxCachedBlocks > MaximumCacheBlocks {
 		c.MaxCachedBlocks = MaximumCacheBlocks
+	}
+	if c.FPS < MinimumFPS || c.FPS > MaximumFPS {
+		c.FPS = DefaultFPS
+	}
+	if c.Keymap == nil {
+		c.Keymap = map[string]string{}
+	}
+	if c.CommandAliases == nil {
+		c.CommandAliases = map[string]string{}
 	}
 	return c
 }
