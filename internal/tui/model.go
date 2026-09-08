@@ -41,6 +41,8 @@ const (
 	inspectorTransactions
 	inspectorForks
 	inspectorContext
+	inspectorScheduler
+	inspectorAuthority
 	inspectorTeams
 	inspectorImprovements
 	inspectorCount
@@ -68,6 +70,7 @@ type Model struct {
 	selectedAgent int
 	scroll        int
 	inspectorTab  inspectorTab
+	reviewIndex   int
 
 	composer        string
 	composerFocused bool
@@ -141,10 +144,8 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
-
 	case tea.KeyPressMsg:
 		return m.updateKey(msg)
-
 	case tea.MouseWheelMsg:
 		mouse := msg.Mouse()
 		switch mouse.Button {
@@ -158,7 +159,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.scroll = max(0, m.scroll-3)
 		}
 		return m, nil
-
 	case attachMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -170,7 +170,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = "attached"
 		m.err = nil
 		return m, nil
-
 	case refreshMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -186,7 +185,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyRefresh(msg.refresh)
 		m.err = nil
 		return m, nil
-
 	case historyMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -200,7 +198,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = fmt.Sprintf("loaded %d older blocks", len(msg.viewport.Blocks))
 		m.err = nil
 		return m, nil
-
 	case searchMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -213,7 +210,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = fmt.Sprintf("%d search results", len(m.searchResults))
 		m.err = nil
 		return m, nil
-
 	case sendMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -224,7 +220,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = fmt.Sprintf("%s queued · %d pending", msg.queue, msg.result.Pending)
 		m.err = nil
 		return m, m.refreshCmd(true)
-
 	case mutationMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -236,7 +231,6 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = msg.label
 		m.err = nil
 		return m, m.refreshCmd(true)
-
 	case tickMsg:
 		cmds := []tea.Cmd{m.tickCmd()}
 		if m.rootID != "" && !m.loading {
@@ -257,6 +251,12 @@ func (m Model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key == "ctrl+p" {
 		m.overlay = overlayPalette
 		m.overlayInput = ""
+		m.composerFocused = false
+		return m, nil
+	}
+	if key == "ctrl+l" {
+		m.overlay = overlayPalette
+		m.overlayInput = "model "
 		m.composerFocused = false
 		return m, nil
 	}
@@ -299,17 +299,21 @@ func (m Model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		m.overlay = overlaySearch
 		m.overlayInput = ""
-	case "up", "k":
-		previous := m.focusID
-		m.selectAgent(-1)
-		if m.focusID != previous {
-			return m, m.attachCmd()
+	case "up":
+		return m.moveAgent(-1)
+	case "down":
+		return m.moveAgent(1)
+	case "k":
+		if m.reviewLength() > 0 && (m.mode == workspace.ModePlan || m.mode == workspace.ModeReview) {
+			m.moveReview(-1)
+		} else {
+			return m.moveAgent(-1)
 		}
-	case "down", "j":
-		previous := m.focusID
-		m.selectAgent(1)
-		if m.focusID != previous {
-			return m, m.attachCmd()
+	case "j":
+		if m.reviewLength() > 0 && (m.mode == workspace.ModePlan || m.mode == workspace.ModeReview) {
+			m.moveReview(1)
+		} else {
+			return m.moveAgent(1)
 		}
 	case "pgup", "u":
 		if m.hasPrevious && !m.loading {
@@ -327,15 +331,15 @@ func (m Model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "]":
 		m.inspectorTab = (m.inspectorTab + 1) % inspectorCount
 	case "1":
-		m.mode = workspace.ModeAsk
+		m.setMode(workspace.ModeAsk)
 	case "2":
-		m.mode = workspace.ModePlan
+		m.setMode(workspace.ModePlan)
 	case "3":
-		m.mode = workspace.ModeAct
+		m.setMode(workspace.ModeAct)
 	case "4":
-		m.mode = workspace.ModeReview
+		m.setMode(workspace.ModeReview)
 	case "5":
-		m.mode = workspace.ModeObserve
+		m.setMode(workspace.ModeObserve)
 	case "s":
 		return m.toggleSuspend()
 	case "r":
@@ -345,6 +349,38 @@ func (m Model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m Model) moveAgent(delta int) (tea.Model, tea.Cmd) {
+	previous := m.focusID
+	m.selectAgent(delta)
+	if m.focusID != previous {
+		return m, m.attachCmd()
+	}
+	return m, nil
+}
+
+func (m *Model) moveReview(delta int) {
+	length := m.reviewLength()
+	if length <= 0 {
+		m.reviewIndex = 0
+		return
+	}
+	m.reviewIndex = (m.reviewIndex + delta + length) % length
+}
+
+func (m Model) reviewLength() int {
+	if m.mode == workspace.ModePlan {
+		if plan, ok := m.latestPlan(); ok {
+			return len(plan.Steps)
+		}
+	}
+	if m.mode == workspace.ModeReview {
+		if diff, ok := m.latestDiff(); ok {
+			return len(diff.Files)
+		}
+	}
+	return 0
 }
 
 func (m Model) updateOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -400,13 +436,13 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 
 	switch verb {
 	case "ask", "act", "observe":
-		m.mode = workspace.Mode(strings.ToUpper(verb))
+		m.setMode(workspace.Mode(strings.ToUpper(verb)))
 		m.status = "mode " + string(m.mode)
 	case "mode":
 		if len(fields) > 1 {
 			candidate := workspace.Mode(strings.ToUpper(fields[1]))
 			if candidate.Valid() {
-				m.mode = candidate
+				m.setMode(candidate)
 				m.status = "mode " + string(candidate)
 			}
 		}
@@ -417,15 +453,10 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 			m.cfg.Theme = DarkTheme()
 		}
 	case "agent":
-		previous := m.focusID
 		if len(fields) > 1 && fields[1] == "prev" {
-			m.selectAgent(-1)
-		} else {
-			m.selectAgent(1)
+			return m.moveAgent(-1)
 		}
-		if m.focusID != previous {
-			return m, m.attachCmd()
-		}
+		return m.moveAgent(1)
 	case "older", "history":
 		if m.hasPrevious && !m.loading {
 			m.loading = true
@@ -448,26 +479,37 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 			m.composer = argument
 			return m.sendComposer(agent.QueueFollowUp)
 		}
-	case "plan":
-		m.mode = workspace.ModePlan
+	case "model":
 		if argument != "" {
-			m.composer = "Plan review: " + argument
+			m.composer = "Model preference request: " + argument + ". Apply only if scheduler/policy authorizes it."
+			return m.sendComposer(agent.QueueSteer)
+		}
+	case "plan":
+		m.setMode(workspace.ModePlan)
+		if argument != "" {
+			ref, step := m.planReviewTarget()
+			m.composer = fmt.Sprintf("Plan review: [%s] step=%s %s", ref, step, argument)
 			return m.sendComposer(agent.QueueSteer)
 		}
 	case "review", "comment":
-		m.mode = workspace.ModeReview
+		m.setMode(workspace.ModeReview)
 		if argument != "" {
-			m.composer = "Review feedback: " + argument
+			ref, file := m.diffReviewTarget()
+			m.composer = fmt.Sprintf("Review feedback: [%s] file=%s %s", ref, file, argument)
 			return m.sendComposer(agent.QueueSteer)
 		}
 	case "suspend", "resume":
 		return m.toggleSuspend()
-	case "transactions":
+	case "transactions", "transaction", "tx":
 		m.inspectorTab = inspectorTransactions
-	case "forks":
+	case "forks", "fork":
 		m.inspectorTab = inspectorForks
 	case "context", "mmu":
 		m.inspectorTab = inspectorContext
+	case "scheduler", "routing", "models":
+		m.inspectorTab = inspectorScheduler
+	case "authority", "security", "capabilities":
+		m.inspectorTab = inspectorAuthority
 	case "teams":
 		m.inspectorTab = inspectorTeams
 	case "improvements":
@@ -483,6 +525,32 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 		m.status = "unknown palette command: " + verb
 	}
 	return m, nil
+}
+
+func (m Model) planReviewTarget() (string, string) {
+	plan, ok := m.latestPlan()
+	if !ok {
+		return "plan:latest", "latest"
+	}
+	step := "all"
+	if len(plan.Steps) > 0 {
+		index := clamp(m.reviewIndex, 0, len(plan.Steps)-1)
+		step = plan.Steps[index].ID
+	}
+	return reviewReference("plan", plan.BlockID, plan.ObjectRef), step
+}
+
+func (m Model) diffReviewTarget() (string, string) {
+	diff, ok := m.latestDiff()
+	if !ok {
+		return "diff:latest", "latest"
+	}
+	file := "all"
+	if len(diff.Files) > 0 {
+		index := clamp(m.reviewIndex, 0, len(diff.Files)-1)
+		file = diff.Files[index].Path
+	}
+	return reviewReference("diff", diff.BlockID, diff.ObjectRef), file
 }
 
 func (m Model) sendComposer(queue agent.MessageQueue) (tea.Model, tea.Cmd) {
@@ -530,6 +598,7 @@ func (m *Model) applySnapshot(snapshot workspace.Snapshot) {
 		m.selectedAgent = 0
 	}
 	m.scroll = 0
+	m.reviewIndex = 0
 }
 
 func (m *Model) applyRefresh(refresh workspace.Refresh) {
@@ -551,6 +620,9 @@ func (m *Model) applyRefresh(refresh workspace.Refresh) {
 	if refresh.Inspector != nil {
 		m.inspector = *refresh.Inspector
 	}
+	if length := m.reviewLength(); length > 0 && m.reviewIndex >= length {
+		m.reviewIndex = length - 1
+	}
 }
 
 func (m *Model) prependBlocks(blocks []workspace.Block) {
@@ -565,9 +637,6 @@ func (m *Model) prependBlocks(blocks []workspace.Block) {
 		limit = DefaultCacheBlocks
 	}
 	if len(combined) > limit {
-		// When explicitly paging backwards, preserve the newly requested older
-		// window and evict from the opposite (newer) edge. Reattach restores the
-		// live tail; cache growth remains independent from total history age.
 		combined = combined[:limit]
 	}
 	m.blocks = combined
@@ -716,18 +785,23 @@ func (m Model) tickCmd() tea.Cmd {
 	return tea.Tick(interval, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
+func (m *Model) setMode(mode workspace.Mode) {
+	m.mode = mode
+	m.reviewIndex = 0
+}
+
 func (m *Model) setModeKey(key string) {
 	switch key {
 	case "ctrl+1":
-		m.mode = workspace.ModeAsk
+		m.setMode(workspace.ModeAsk)
 	case "ctrl+2":
-		m.mode = workspace.ModePlan
+		m.setMode(workspace.ModePlan)
 	case "ctrl+3":
-		m.mode = workspace.ModeAct
+		m.setMode(workspace.ModeAct)
 	case "ctrl+4":
-		m.mode = workspace.ModeReview
+		m.setMode(workspace.ModeReview)
 	case "ctrl+5":
-		m.mode = workspace.ModeObserve
+		m.setMode(workspace.ModeObserve)
 	}
 }
 
