@@ -19,6 +19,7 @@ type RuntimeInstanceID string
 type SnapshotID string
 type CheckpointID string
 type ContextPageID string
+type ContextFaultID string
 type SpawnID string
 type MessageID string
 type BudgetReservationID string
@@ -47,6 +48,7 @@ func (id RuntimeInstanceID) String() string   { return string(id) }
 func (id SnapshotID) String() string          { return string(id) }
 func (id CheckpointID) String() string        { return string(id) }
 func (id ContextPageID) String() string       { return string(id) }
+func (id ContextFaultID) String() string      { return string(id) }
 func (id SpawnID) String() string             { return string(id) }
 func (id MessageID) String() string           { return string(id) }
 func (id BudgetReservationID) String() string { return string(id) }
