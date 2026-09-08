@@ -23,12 +23,12 @@ type BranchRef struct {
 }
 
 type PromotionPlan struct {
-	OperationID   id.OperationID `json:"operation_id"`
-	BaseIdentity  string         `json:"base_identity"`
-	TargetBefore  string         `json:"target_before"`
-	Source        string         `json:"source"`
-	Merged        string         `json:"merged"`
-	TargetChanged bool           `json:"target_changed"`
+	OperationID   id.OperationID  `json:"operation_id"`
+	BaseIdentity  string          `json:"base_identity"`
+	TargetBefore  string          `json:"target_before"`
+	Source        string          `json:"source"`
+	Merged        string          `json:"merged"`
+	TargetChanged bool            `json:"target_changed"`
 	Metadata      json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -50,5 +50,6 @@ type TransactionalWorld interface {
 	VerifyPromotion(context.Context, PromotionPlan) error
 	ReconcilePromotion(context.Context, PromotionPlan) (PromotionStatus, error)
 	Rollback(context.Context) error
+	Finalize(context.Context) error
 	Close(context.Context) error
 }
