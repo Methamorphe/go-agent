@@ -59,10 +59,10 @@ type Model struct {
 	mode    workspace.Mode
 	cursor  uint64
 
-	tree       []workspace.ProcessSummary
-	blocks     []workspace.Block
-	inspector  workspace.Inspector
-	oldest     uint64
+	tree        []workspace.ProcessSummary
+	blocks      []workspace.Block
+	inspector   workspace.Inspector
+	oldest      uint64
 	hasPrevious bool
 
 	selectedAgent int
@@ -145,6 +145,20 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.updateKey(msg)
 
+	case tea.MouseWheelMsg:
+		mouse := msg.Mouse()
+		switch mouse.Button {
+		case tea.MouseWheelUp:
+			m.scroll = min(len(m.blocks), m.scroll+3)
+			if m.scroll >= len(m.blocks)-2 && m.hasPrevious && !m.loading {
+				m.loading = true
+				return m, m.historyCmd()
+			}
+		case tea.MouseWheelDown:
+			m.scroll = max(0, m.scroll-3)
+		}
+		return m, nil
+
 	case attachMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -195,6 +209,7 @@ func (m Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.searchResults = append(m.searchResults[:0], msg.result.Blocks...)
+		m.overlay = overlaySearch
 		m.status = fmt.Sprintf("%d search results", len(m.searchResults))
 		m.err = nil
 		return m, nil
@@ -285,9 +300,17 @@ func (m Model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.overlay = overlaySearch
 		m.overlayInput = ""
 	case "up", "k":
+		previous := m.focusID
 		m.selectAgent(-1)
+		if m.focusID != previous {
+			return m, m.attachCmd()
+		}
 	case "down", "j":
+		previous := m.focusID
 		m.selectAgent(1)
+		if m.focusID != previous {
+			return m, m.attachCmd()
+		}
 	case "pgup", "u":
 		if m.hasPrevious && !m.loading {
 			m.loading = true
@@ -340,9 +363,9 @@ func (m Model) updateOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.executePalette(strings.TrimSpace(m.overlayInput))
 		case overlaySearch:
 			query := strings.TrimSpace(m.overlayInput)
-			m.overlay = overlayNone
 			m.overlayInput = ""
 			if query == "" || m.rootID == "" {
+				m.overlay = overlayNone
 				return m, nil
 			}
 			m.loading = true
@@ -364,14 +387,29 @@ func (m Model) updateOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 	m.overlay = overlayNone
 	m.overlayInput = ""
-	fields := strings.Fields(strings.ToLower(command))
-	if len(fields) == 0 {
+	rawFields := strings.Fields(command)
+	if len(rawFields) == 0 {
 		return m, nil
 	}
-	switch fields[0] {
+	verb := strings.ToLower(rawFields[0])
+	argument := strings.TrimSpace(strings.TrimPrefix(command, rawFields[0]))
+	fields := make([]string, len(rawFields))
+	for index, field := range rawFields {
+		fields[index] = strings.ToLower(field)
+	}
+
+	switch verb {
 	case "ask", "plan", "act", "review", "observe":
-		m.mode = workspace.Mode(strings.ToUpper(fields[0]))
+		m.mode = workspace.Mode(strings.ToUpper(verb))
 		m.status = "mode " + string(m.mode)
+	case "mode":
+		if len(fields) > 1 {
+			candidate := workspace.Mode(strings.ToUpper(fields[1]))
+			if candidate.Valid() {
+				m.mode = candidate
+				m.status = "mode " + string(candidate)
+			}
+		}
 	case "theme":
 		if len(fields) > 1 && fields[1] == "light" {
 			m.cfg.Theme = LightTheme()
@@ -379,10 +417,14 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 			m.cfg.Theme = DarkTheme()
 		}
 	case "agent":
+		previous := m.focusID
 		if len(fields) > 1 && fields[1] == "prev" {
 			m.selectAgent(-1)
 		} else {
 			m.selectAgent(1)
+		}
+		if m.focusID != previous {
+			return m, m.attachCmd()
 		}
 	case "older", "history":
 		if m.hasPrevious && !m.loading {
@@ -390,7 +432,34 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 			return m, m.historyCmd()
 		}
 	case "search":
-		m.overlay = overlaySearch
+		if argument == "" {
+			m.overlay = overlaySearch
+			break
+		}
+		m.loading = true
+		return m, m.searchCmd(argument)
+	case "steer":
+		if argument != "" {
+			m.composer = argument
+			return m.sendComposer(agent.QueueSteer)
+		}
+	case "follow", "follow-up", "followup":
+		if argument != "" {
+			m.composer = argument
+			return m.sendComposer(agent.QueueFollowUp)
+		}
+	case "plan":
+		m.mode = workspace.ModePlan
+		if argument != "" {
+			m.composer = "Plan review: " + argument
+			return m.sendComposer(agent.QueueSteer)
+		}
+	case "review", "comment":
+		m.mode = workspace.ModeReview
+		if argument != "" {
+			m.composer = "Review feedback: " + argument
+			return m.sendComposer(agent.QueueSteer)
+		}
 	case "suspend", "resume":
 		return m.toggleSuspend()
 	case "transactions":
@@ -405,9 +474,13 @@ func (m Model) executePalette(command string) (tea.Model, tea.Cmd) {
 		m.inspectorTab = inspectorImprovements
 	case "help":
 		m.overlay = overlayHelp
-	case "refresh":
+	case "refresh", "attach":
 		m.loading = true
 		return m, m.attachCmd()
+	case "detach", "quit":
+		return m, tea.Quit
+	default:
+		m.status = "unknown palette command: " + verb
 	}
 	return m, nil
 }
@@ -453,6 +526,9 @@ func (m *Model) applySnapshot(snapshot workspace.Snapshot) {
 	m.oldest = snapshot.Viewport.Oldest
 	m.hasPrevious = snapshot.Viewport.HasPrevious
 	m.selectedAgent = indexAgent(m.tree, m.focusID)
+	if m.selectedAgent < 0 {
+		m.selectedAgent = 0
+	}
 	m.scroll = 0
 }
 
@@ -468,6 +544,9 @@ func (m *Model) applyRefresh(refresh workspace.Refresh) {
 	}
 	if len(refresh.Blocks) > 0 {
 		m.blocks = boundedBlocks(append(m.blocks, refresh.Blocks...), m.cfg.MaxCachedBlocks)
+		if m.scroll == 0 {
+			m.status = fmt.Sprintf("%d new blocks", len(refresh.Blocks))
+		}
 	}
 	if refresh.Inspector != nil {
 		m.inspector = *refresh.Inspector
@@ -481,7 +560,18 @@ func (m *Model) prependBlocks(blocks []workspace.Block) {
 	combined := make([]workspace.Block, 0, len(blocks)+len(m.blocks))
 	combined = append(combined, blocks...)
 	combined = append(combined, m.blocks...)
-	m.blocks = boundedBlocks(combined, m.cfg.MaxCachedBlocks)
+	limit := m.cfg.MaxCachedBlocks
+	if limit <= 0 {
+		limit = DefaultCacheBlocks
+	}
+	if len(combined) > limit {
+		// When explicitly paging backwards, preserve the newly requested older
+		// window and evict from the opposite (newer) edge. Reattach restores the
+		// live tail; cache growth remains independent from total history age.
+		combined = combined[:limit]
+	}
+	m.blocks = combined
+	m.scroll = min(len(m.blocks), m.scroll+len(blocks))
 }
 
 func (m *Model) patchState(state process.State) {
@@ -556,6 +646,9 @@ func (m Model) attachCmd() tea.Cmd {
 func (m Model) refreshCmd(inspector bool) tea.Cmd {
 	rootID, focusID, cursor := m.rootID, m.focusID, m.cursor
 	return func() tea.Msg {
+		if m.client == nil {
+			return refreshMsg{err: context.Canceled}
+		}
 		refresh, err := m.client.Refresh(m.ctx, workspace.RefreshRequest{
 			RootAgentID: rootID,
 			FocusedAgentID: focusID,
@@ -570,6 +663,9 @@ func (m Model) refreshCmd(inspector bool) tea.Cmd {
 func (m Model) historyCmd() tea.Cmd {
 	focusID, before := m.focusID, m.oldest
 	return func() tea.Msg {
+		if m.client == nil {
+			return historyMsg{err: context.Canceled}
+		}
 		viewport, err := m.client.History(m.ctx, workspace.HistoryRequest{
 			AgentID: focusID,
 			Before: before,
@@ -582,6 +678,9 @@ func (m Model) historyCmd() tea.Cmd {
 func (m Model) searchCmd(query string) tea.Cmd {
 	rootID := m.rootID
 	return func() tea.Msg {
+		if m.client == nil {
+			return searchMsg{err: context.Canceled}
+		}
 		result, err := m.client.Search(m.ctx, workspace.SearchRequest{RootAgentID: rootID, Query: query, Limit: 100})
 		return searchMsg{result: result, err: err}
 	}
@@ -590,6 +689,9 @@ func (m Model) searchCmd(query string) tea.Cmd {
 func (m Model) sendCmd(text string, queue agent.MessageQueue) tea.Cmd {
 	focusID := m.focusID
 	return func() tea.Msg {
+		if m.client == nil {
+			return sendMsg{queue: queue, err: context.Canceled}
+		}
 		result, err := m.client.SendMessage(m.ctx, focusID, text, queue)
 		return sendMsg{result: result, queue: queue, err: err}
 	}
@@ -616,11 +718,16 @@ func (m Model) tickCmd() tea.Cmd {
 
 func (m *Model) setModeKey(key string) {
 	switch key {
-	case "ctrl+1": m.mode = workspace.ModeAsk
-	case "ctrl+2": m.mode = workspace.ModePlan
-	case "ctrl+3": m.mode = workspace.ModeAct
-	case "ctrl+4": m.mode = workspace.ModeReview
-	case "ctrl+5": m.mode = workspace.ModeObserve
+	case "ctrl+1":
+		m.mode = workspace.ModeAsk
+	case "ctrl+2":
+		m.mode = workspace.ModePlan
+	case "ctrl+3":
+		m.mode = workspace.ModeAct
+	case "ctrl+4":
+		m.mode = workspace.ModeReview
+	case "ctrl+5":
+		m.mode = workspace.ModeObserve
 	}
 }
 
