@@ -10,7 +10,7 @@ A0  Architecture & Semantics
 G0… Implementation generations
 ```
 
-**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is complete. G8 is ready.**
+**A0 is complete. G0 is complete. G1 is complete. G2 is complete. G3 is complete. G4 is complete. G5 is complete. G6 is complete. G7 is complete. G8 is complete. G9 is ready.**
 
 See:
 
@@ -24,6 +24,7 @@ See:
 - `G5_EXIT_REVIEW.md`;
 - `G6_EXIT_REVIEW.md`;
 - `G7_EXIT_REVIEW.md`;
+- `G8_EXIT_REVIEW.md`;
 - `PRODUCTION_TUI_WORKSPACE.md`;
 - `LONG_DURATION_BENCHMARKS.md`;
 - `ARCHITECTURE_GATE.md`;
@@ -591,7 +592,7 @@ See `G7_EXIT_REVIEW.md`.
 
 ---
 
-# G8 — Cognitive Fork / Safe Execution Editing 🟢 READY
+# G8 — Cognitive Fork / Safe Execution Editing ✅ COMPLETE
 
 ## Goal
 
@@ -615,9 +616,25 @@ Explore alternative futures in parallel without rewriting history.
 
 Implement two solutions to a performance problem, benchmark both in isolated forks, explain comparison and promote only winner with no mutation leakage or history truncation.
 
+## G8 result
+
+**PASS.**
+
+G8 implements quiescent forkable/committable checkpoints with explicit Execution Frontier, exact process-state integrity, required-result preservation, restore-as-new-Agent-timeline semantics, isolated Workspace forks from the checkpoint's immutable Git base, shared immutable Git objects with distinct mutable worktrees, branch-local cognitive overlays, independent pre-admission budget reservations, fork-namespaced actions, deterministic evidence-backed branch evaluation, persisted winner reason and selective provenance-aware cognitive promotion.
+
+Historical checkpoint authority cannot resurrect revoked rights: branch capabilities and allowed Intent domains are the intersection of checkpoint and current authority, while forbidden domains/acceptance criteria accumulate conservatively. Speculative irreversible effects are denied before reaching the inner World.
+
+Winner promotion reuses G7's three-way target/base/source merge, target-scoped promotion lease and reconciliation semantics. Cleanup is idempotent across winner/loser paths and releases owned promotion lease, worktree, synthetic Git refs and unused budget before retention-based purge.
+
+SQLite migration `0008_cognitive_forks.sql` persists checkpoints, Execution Frontier, authority, fork groups/branches, budget state, objective evaluation and cognitive overlays.
+
+The deterministic validation suite includes the two-solution killer demonstration plus Execution Frontier, SQLite persistence, Workspace isolation/COW, authority-intersection, speculative-effect and full cleanup tests. GitHub Actions was intentionally skipped for this closure pass; no unobserved green CI/local-test result is claimed.
+
+See `G8_EXIT_REVIEW.md`.
+
 ---
 
-# G9 — Epistemic Memory + Truth Maintenance
+# G9 — Epistemic Memory + Truth Maintenance 🟢 READY
 
 ## Goal
 
@@ -983,7 +1000,7 @@ bounded context
 recursive subagents
 ```
 
-G6 added model/resource scheduling and restart-safe model-budget accounting. G7 adds isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8–G10 build on this substrate with cognitive forks, epistemic memory and typed context faults.
+G6 added model/resource scheduling and restart-safe model-budget accounting. G7 added isolated speculative workspace mutation, conservative OCI execution and durable commit/rollback/reconciliation semantics. G8 adds safe execution editing, isolated alternative Agent/World futures, objective winner selection and selective promotion. G9–G10 build on this substrate with epistemic memory and typed context faults.
 
 **G13 is the deliberate productization generation:** it turns these runtime primitives into a polished interactive terminal workspace inspired by the best modern coding-agent UX while preserving go-agent's daemon durability, inspectability and headless parity. G14 then expands execution across remote workers; G15 adds deep production observability/time-travel debugging.
 
@@ -1017,18 +1034,17 @@ Long-duration validation uses tagged provider-free soak scenarios and explicit b
 
 # Immediate next step
 
-**G8 — Cognitive Fork / Safe Execution Editing is READY.**
+**G9 — Epistemic Memory + Truth Maintenance is READY.**
 
-Build safe alternative execution timelines on top of G7's isolated World and transaction substrate with:
+Build evidence-aware durable knowledge on top of G8's branch-local overlay and selective promotion substrate with:
 
-- forkable quiescent checkpoints and explicit Execution Frontier;
-- branch Agent identity plus isolated World state when mutation is possible;
-- copy-on-write context/memory overlays;
-- independent bounded budget reservations;
-- objective branch evaluation;
-- three-way World promotion relative to an explicit base;
-- selective cognitive promotion rather than transcript union;
-- restore-as-new-timeline semantics that never truncate observed history;
-- cleanup/retention and promotion-lease integration.
+- immutable/versioned Evidence objects;
+- platform/source provenance;
+- Belief lifecycle and confidence metadata;
+- scope and temporal validity;
+- contradiction/dependency edges;
+- localized causal invalidation;
+- Cognitive MMU integration;
+- branch-local belief overlays and promotion rules.
 
-G8 must preserve the existing kernel invariant: **time travel may change what an Agent does next, but it cannot rewrite what the World already observed.**
+G9 must preserve the kernel invariant that a winning fork may promote verified knowledge with provenance, but speculative branch assumptions do not become trusted global truth merely because the branch won an execution benchmark.
