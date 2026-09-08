@@ -84,10 +84,10 @@ func ForkWorkspaceWorld(ctx context.Context, base BranchRef, worldID id.WorldID,
 }
 
 // ReleaseWorkspaceBranch is the idempotent G8 cleanup primitive. It removes
-// both the detached worktree, when still present, and every synthetic Git ref
-// retained below the branch prefix. This remains correct after a successful
-// G7 commit because WorkspaceWorld.Finalize may already have removed the
-// worktree while promotion refs are still reachable.
+// the branch-owned promotion lease, detached worktree, and every synthetic Git
+// ref retained below the branch prefix. It remains correct after a successful
+// G7 commit, where Finalize may already have released the lease/worktree while
+// promotion refs are still reachable.
 func ReleaseWorkspaceBranch(ctx context.Context, ref BranchRef) error {
 	if ref.Type != TypeWorkspace || len(ref.Metadata) == 0 {
 		return nil
@@ -98,6 +98,10 @@ func ReleaseWorkspaceBranch(ctx context.Context, ref BranchRef) error {
 	}
 	if meta.Repository == "" {
 		return nil
+	}
+	owner := &WorkspaceWorld{id: ref.WorldID, meta: meta}
+	if err := owner.releaseWorldPromotionLease(); err != nil {
+		return err
 	}
 	if meta.Worktree != "" {
 		if err := removeWorkspaceWorktree(ctx, meta.Repository, meta.Worktree); err != nil {
