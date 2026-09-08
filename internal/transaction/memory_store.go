@@ -121,7 +121,7 @@ func (s *MemoryStore) CreateVerification(_ context.Context, verification Verific
 	return nil
 }
 
-func (s *MemoryStore) Events(_ context.Context, transactionID id.TransactionID) ([]Event, error) {
+func (s *MemoryStore) TransactionEvents(_ context.Context, transactionID id.TransactionID) ([]Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.transactions[transactionID]; !ok {
