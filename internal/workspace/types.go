@@ -96,6 +96,23 @@ type ProcessSummary struct {
 	UpdatedAt     time.Time           `json:"updated_at"`
 	CreatedAt     time.Time           `json:"created_at"`
 	Children      int                 `json:"children"`
+
+	// Deprecated presentation aliases retained for the G13 client while all
+	// canonical protocol fields remain waiting_reason/waiting_ref.
+	WaitReason string `json:"-"`
+	WaitRef    string `json:"-"`
+}
+
+func (p *ProcessSummary) UnmarshalJSON(data []byte) error {
+	type wire ProcessSummary
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*p = ProcessSummary(decoded)
+	p.WaitReason = p.WaitingReason
+	p.WaitRef = p.WaitingRef
+	return nil
 }
 
 type Snapshot struct {
@@ -126,12 +143,12 @@ type RefreshRequest struct {
 }
 
 type Refresh struct {
-	Cursor     uint64           `json:"cursor"`
-	TreePatch  []ProcessSummary `json:"tree_patch"`
-	Blocks     []Block          `json:"blocks"`
-	Inspector  *Inspector       `json:"inspector,omitempty"`
-	Behind     bool             `json:"behind"`
-	GeneratedAt time.Time       `json:"generated_at"`
+	Cursor      uint64           `json:"cursor"`
+	TreePatch   []ProcessSummary `json:"tree_patch"`
+	Blocks      []Block          `json:"blocks"`
+	Inspector   *Inspector       `json:"inspector,omitempty"`
+	Behind      bool             `json:"behind"`
+	GeneratedAt time.Time        `json:"generated_at"`
 }
 
 type HistoryRequest struct {
