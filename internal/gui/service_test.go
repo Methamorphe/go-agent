@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Methamorphe/go-agent/internal/agent"
 	controlapi "github.com/Methamorphe/go-agent/internal/control/api"
@@ -30,6 +31,30 @@ func TestBootstrapIsBoundedAndDefaultsToAct(t *testing.T) {
 	}
 	if bootstrap.MaxHistoryPage != workspace.MaxPageSize || bootstrap.MaxTree != workspace.MaxTreeLimit {
 		t.Fatalf("unexpected projection limits: %#v", bootstrap)
+	}
+}
+
+func TestFrontendReadySignalsStartupProbeOnce(t *testing.T) {
+	probe := NewStartupProbe()
+	service := NewServiceWithStartupProbe(nil, LaunchOptions{}, probe)
+
+	service.FrontendReady()
+	service.FrontendReady()
+
+	select {
+	case at, ok := <-probe.Ready():
+		if !ok {
+			t.Fatal("startup probe closed without a timestamp")
+		}
+		if at.IsZero() {
+			t.Fatal("startup probe timestamp is zero")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("frontend ready signal was not delivered")
+	}
+
+	if _, ok := <-probe.Ready(); ok {
+		t.Fatal("startup probe must close after the one-shot signal")
 	}
 }
 
