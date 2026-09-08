@@ -31,16 +31,18 @@ func run(args []string) int {
 	var agentID string
 	var mode string
 	var theme string
+	var uiConfigPath string
 	flags.StringVar(&dataDir, "data-dir", "", "runtime data directory")
 	flags.StringVar(&controlAddress, "control-address", "", "unix socket or Windows named pipe")
 	flags.StringVar(&agentID, "agent", "", "Agent Process to attach; latest root when omitted")
 	flags.StringVar(&mode, "mode", "ACT", "ASK|PLAN|ACT|REVIEW|OBSERVE")
-	flags.StringVar(&theme, "theme", "dark", "dark|light")
+	flags.StringVar(&theme, "theme", "", "dark|light; overrides the UI profile")
+	flags.StringVar(&uiConfigPath, "ui-config", "", "JSON TUI customization profile")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
 	if flags.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: go-agent-tui [--agent <id>] [--mode ACT] [--theme dark]")
+		fmt.Fprintln(os.Stderr, "usage: go-agent-tui [--agent <id>] [--mode ACT] [--theme dark] [--ui-config profile.json]")
 		return 2
 	}
 
@@ -67,14 +69,26 @@ func run(args []string) int {
 	uiConfig := tui.DefaultConfig()
 	uiConfig.AgentID = id.AgentID(strings.TrimSpace(agentID))
 	uiConfig.Mode = workspaceMode
-	switch strings.ToLower(strings.TrimSpace(theme)) {
-	case "dark":
-		uiConfig.Theme = tui.DarkTheme()
-	case "light":
-		uiConfig.Theme = tui.LightTheme()
-	default:
-		fmt.Fprintln(os.Stderr, "--theme must be dark or light")
+	customization, err := tui.LoadCustomization(uiConfigPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "UI configuration error:", err)
 		return 2
+	}
+	uiConfig, err = tui.ApplyCustomization(uiConfig, customization)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "UI configuration error:", err)
+		return 2
+	}
+	if visited["theme"] {
+		switch strings.ToLower(strings.TrimSpace(theme)) {
+		case "dark":
+			uiConfig.Theme = tui.DarkTheme()
+		case "light":
+			uiConfig.Theme = tui.LightTheme()
+		default:
+			fmt.Fprintln(os.Stderr, "--theme must be dark or light")
+			return 2
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -82,7 +96,7 @@ func run(args []string) int {
 	controlClient := control.NewClient(cfg.ControlAddress, cfg.MaxFrameBytes, id.NewGenerator())
 	client := tui.NewControlClient(controlClient)
 	model := tui.NewModel(ctx, client, uiConfig)
-	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithFPS(30))
+	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithFPS(uiConfig.FPS))
 	if _, err := program.Run(); err != nil {
 		if ctx.Err() != nil {
 			return 0
