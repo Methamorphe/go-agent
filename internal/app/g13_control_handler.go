@@ -11,6 +11,7 @@ import (
 
 type g13WorkspaceCommands interface {
 	Attach(context.Context, workspace.AttachRequest) (workspace.Snapshot, error)
+	Refresh(context.Context, workspace.RefreshRequest) (workspace.Refresh, error)
 	History(context.Context, workspace.HistoryRequest) (workspace.ConversationViewport, error)
 	Search(context.Context, workspace.SearchRequest) (workspace.SearchResult, error)
 }
@@ -28,6 +29,17 @@ func newG13ControlHandler(base control.Handler, workspaces g13WorkspaceCommands)
 				return protocol.Envelope{}, err
 			}
 			return response(request, controlapi.WorkspaceAttachResponse{Snapshot: snapshot})
+
+		case controlapi.TypeWorkspaceRefresh:
+			payload, err := decodeControlPayload[controlapi.WorkspaceRefreshRequest](request.Payload)
+			if err != nil {
+				return protocol.Envelope{}, err
+			}
+			refresh, err := workspaces.Refresh(ctx, payload)
+			if err != nil {
+				return protocol.Envelope{}, err
+			}
+			return response(request, controlapi.WorkspaceRefreshResponse{Refresh: refresh})
 
 		case controlapi.TypeWorkspaceHistory:
 			payload, err := decodeControlPayload[controlapi.WorkspaceHistoryRequest](request.Payload)
