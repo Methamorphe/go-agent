@@ -47,7 +47,7 @@ DEFERRED    intentionally excluded from early implementation; extension boundary
 | Learned model routing | DEFERRED | `COGNITIVE_SCHEDULER_ARCHITECTURE.md`, `VERIFIED_CONTINUAL_IMPROVEMENT.md` |
 | Provider-specific mid-token Context Fault resume | DEFERRED | `CONTEXT_FAULTS_AND_COGNITIVE_PAGING.md` |
 | Non-quiescent execution editing | DEFERRED research | `EXECUTION_EDIT_SAFETY.md` |
-| Production TUI / Interactive Agent Workspace | CLOSED architecture / EMPIRICAL framework + UX | `TUI_AND_STREAMING.md`, `PRODUCTION_TUI_WORKSPACE.md`, roadmap G13 |
+| Interactive Agent Workspace clients (TUI + Desktop GUI) | CLOSED architecture / EMPIRICAL framework + UX | `TUI_AND_STREAMING.md`, `PRODUCTION_TUI_WORKSPACE.md`, `PRODUCTION_DESKTOP_WORKSPACE.md`, roadmap G13 |
 | Distributed workers/control plane | DEFERRED | roadmap G14 |
 | Production observability / time-travel debugger | DEFERRED implementation | roadmap G15 |
 
@@ -83,6 +83,8 @@ G7 has now implemented the first architecture-valid Agent Transaction substrate:
 
 G8 may build Cognitive Fork / Safe Execution Editing on those closed semantics without reinterpreting the G7 transaction guarantees.
 
-The production terminal experience is now an explicit roadmap generation: **G13 — Production TUI / Interactive Agent Workspace**. G13 owns the final framework selection, polished multi-agent UX, plan/diff review, transaction/fork visualization, MMU/authority inspection, themes/keymaps and long-history responsiveness while preserving the daemon-as-source-of-truth architecture.
+The production interaction experience is now an explicit roadmap generation: **G13 — Interactive Agent Workspace**. G13 owns two first-class replaceable clients of the durable daemon: a production TUI for terminal/SSH/power-user workflows and a lightweight desktop GUI for the richest visual workspace. Both must preserve headless/runtime parity, bounded presentation state, crash independence, authority semantics and long-history responsiveness.
+
+The desktop client additionally has strict release budgets for package size, idle RAM/CPU, startup latency and frame responsiveness; heavyweight bundled browser/runtime architectures are rejected by default when they cannot meet those budgets.
 
 No implementation work should reinterpret a CLOSED concept silently. A high-coupling semantic change requires an explicit contract/decision update before code changes.
