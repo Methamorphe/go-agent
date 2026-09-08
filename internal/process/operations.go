@@ -6,6 +6,16 @@ import (
 	"github.com/Methamorphe/go-agent/internal/id"
 )
 
+func (s *Service) UserMessageReceived(
+	ctx context.Context,
+	agentID id.AgentID,
+	expected *uint64,
+	payload UserMessageReceivedPayload,
+	meta CommandMeta,
+) (State, error) {
+	return s.transition(ctx, "process.user_message_received", agentID, expected, EventUserMessageReceived, payload, meta)
+}
+
 func (s *Service) CognitiveRoutingDecided(
 	ctx context.Context,
 	agentID id.AgentID,
