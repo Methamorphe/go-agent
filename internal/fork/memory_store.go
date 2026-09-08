@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/Methamorphe/go-agent/internal/id"
+	"github.com/Methamorphe/go-agent/internal/world"
 )
 
 type MemoryStore struct {
@@ -43,23 +44,15 @@ func cloneCheckpoint(cp Checkpoint) Checkpoint {
 	copy.Frontier.ChildDependencies = append([]ChildDependency(nil), cp.Frontier.ChildDependencies...)
 	copy.Frontier.ContextRefs = append([]id.ContextPageID(nil), cp.Frontier.ContextRefs...)
 	copy.Frontier.WorldSnapshotRef.Metadata = append([]byte(nil), cp.Frontier.WorldSnapshotRef.Metadata...)
-	copy.Authority.Capabilities = append([]worldCapability(nil), nil...)
-	copy.Authority.Capabilities = append(copy.Authority.Capabilities[:0], cp.Authority.Capabilities...)
+	copy.Authority.Capabilities = append([]world.Capability(nil), cp.Authority.Capabilities...)
 	if cp.RetainUntil != nil { t := *cp.RetainUntil; copy.RetainUntil = &t }
 	return copy
-}
-
-type worldCapability = struct {
-	Domain string `json:"domain"`
-	Scope string `json:"scope"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 func cloneBranch(b Branch) Branch {
 	copy := b
 	copy.WorldRef.Metadata = append([]byte(nil), b.WorldRef.Metadata...)
-	copy.Authority.Capabilities = append([]worldCapability(nil), nil...)
-	copy.Authority.Capabilities = append(copy.Authority.Capabilities[:0], b.Authority.Capabilities...)
+	copy.Authority.Capabilities = append([]world.Capability(nil), b.Authority.Capabilities...)
 	copy.CognitiveOverlay = append([]OverlayEntry(nil), b.CognitiveOverlay...)
 	for i := range copy.CognitiveOverlay { copy.CognitiveOverlay[i].Value = append([]byte(nil), b.CognitiveOverlay[i].Value...) }
 	if b.Evaluation != nil { e := *b.Evaluation; copy.Evaluation = &e }
