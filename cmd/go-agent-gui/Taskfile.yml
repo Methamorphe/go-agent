@@ -1,0 +1,69 @@
+version: '3'
+
+vars:
+  APP_NAME: go-agent-gui
+  BIN_DIR: bin
+
+tasks:
+  install:frontend:deps:
+    summary: Install the exact frontend toolchain declared by package.json
+    dir: frontend
+    sources:
+      - package.json
+    generates:
+      - node_modules
+    cmds:
+      - npm install --no-audit --no-fund
+
+  generate:bindings:
+    summary: Generate Wails v3 TypeScript bindings for the desktop service
+    sources:
+      - "../../internal/gui/*.go"
+      - "main.go"
+      - "../../go.mod"
+      - "../../go.sum"
+    generates:
+      - frontend/bindings/**/*
+    cmds:
+      - wails3 generate bindings -ts -clean=true -d frontend/bindings .
+
+  build:frontend:
+    summary: Type-check and bundle the lightweight frontend
+    deps:
+      - install:frontend:deps
+      - generate:bindings
+    dir: frontend
+    sources:
+      - "src/**/*"
+      - index.html
+      - package.json
+      - tsconfig.json
+      - vite.config.ts
+    generates:
+      - dist/**/*
+    cmds:
+      - npm run build
+
+  test:frontend:
+    summary: Run frontend state and projection tests
+    deps:
+      - install:frontend:deps
+    dir: frontend
+    cmds:
+      - npm test
+
+  build:
+    summary: Build the production Wails v3 desktop binary
+    deps:
+      - build:frontend
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -tags production -trimpath -buildvcs=false -ldflags="-w -s" -o "{{.BIN_DIR}}/{{.APP_NAME}}{{exeExt}}" .
+
+  dev:frontend:
+    summary: Run the Vite development server used by wails3 dev
+    deps:
+      - install:frontend:deps
+    dir: frontend
+    cmds:
+      - npm run dev -- --host 127.0.0.1 --strictPort
